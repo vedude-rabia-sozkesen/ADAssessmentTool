@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="ADAssessment.Console/ADAssessment.Console.csproj" />
+  <Project Path="ADAssessment.ConsoleApp/ADAssessment.ConsoleApp.csproj" Id="70a013a7-0ed0-48aa-b875-44f0559c65f2" />
+  <Project Path="ADAssessment.Core/ADAssessment.Core.csproj" />
+  <Project Path="ADAssessment.Infrastructure/ADAssessment.Infrastructure.csproj" />
+  <Project Path="ADAssessment.Plugins/ADAssessment.Plugins.csproj" />
+</Solution>
