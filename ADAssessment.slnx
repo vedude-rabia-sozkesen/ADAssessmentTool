@@ -1,7 +1,10 @@
 <Solution>
-  <Project Path="ADAssessment.Console/ADAssessment.Console.csproj" />
-  <Project Path="ADAssessment.ConsoleApp/ADAssessment.ConsoleApp.csproj" Id="70a013a7-0ed0-48aa-b875-44f0559c65f2" />
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+  </Configurations>
   <Project Path="ADAssessment.Core/ADAssessment.Core.csproj" />
   <Project Path="ADAssessment.Infrastructure/ADAssessment.Infrastructure.csproj" />
   <Project Path="ADAssessment.Plugins/ADAssessment.Plugins.csproj" />
+  <Project Path="ASAssessment.ConsoleApp/ASAssessment.ConsoleApp.csproj" Id="cdded669-7275-45b0-a762-cadcaa69fd41" />
 </Solution>

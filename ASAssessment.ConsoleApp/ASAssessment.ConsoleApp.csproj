@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ADAssessment.Core\ADAssessment.Core.csproj" />S
+    <ProjectReference Include="..\ADAssessment.Core\ADAssessment.Core.csproj" />
     <ProjectReference Include="..\ADAssessment.Infrastructure\ADAssessment.Infrastructure.csproj" />
   </ItemGroup>
 
