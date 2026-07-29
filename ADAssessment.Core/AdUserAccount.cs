@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace ADAssessment.Core
 {
@@ -34,5 +34,9 @@ namespace ADAssessment.Core
         /// Hesaba tanımlanmış olan Service Principal Name (SPN) listesi.
         /// Kerberoasting analizinin ana odak noktasıdır.
         public IReadOnlyList<string> ServicePrincipalNames { get; init; } = System.Array.Empty<string>();
+
+        /// UserAccountControl bit 22 (0x400000) = DONT_REQUIRE_PREAUTH bayrağını kontrol eder.
+        /// Kerberos ön kimlik doğrulaması kapalıysa true döner (AS-REP Roasting Zafiyeti).
+        public bool IsPreauthNotRequired => (UserAccountControl & 0x400000) != 0;
     }
 }
