@@ -26,11 +26,19 @@ namespace ADAssessment.ConsoleApp
                 // 2. Kuralların Tanımlanması ve Çalıştırılması
                 Console.WriteLine("[*] Güvenlik analizleri başlatılıyor...\n");
 
-                // Tüm kuralları bir listede topluyoruz
+                // Tüm kuralları (10 adet) bir listede topluyoruz
                 var rules = new List<IComplianceRule>
                 {
-                    new KerberoastingRule(),
-                    new AsRepRoastingRule()
+                    new KerberoastingRule(),            // AD-001
+                    new AsRepRoastingRule(),            // AD-002
+                    new PasswordNeverExpiresRule(),     // AD-003
+                    new PasswordNotRequiredRule(),      // AD-004
+                    new StaleUserAccountsRule(),        // AD-005
+                    new UnconstrainedDelegationRule(),  // AD-006
+                    new StalePasswordRule(),            // AD-007
+                    new CannotChangePasswordRule(),     // AD-008
+                    new ReversibleEncryptionRule(),     // AD-009
+                    new DesEncryptionAllowedRule()      // AD-010
                 };
 
                 // Kuralları sırayla döngüye sokup çalıştırıyoruz
