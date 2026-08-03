@@ -1,21 +1,20 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.DirectoryServices;
 using System.Reflection;
-using ADAssessment.Core; // Az önce oluşturduğumuz veri modeline erişim sağladık (Loose Coupling)
+using System.Security;
+using ADAssessment.Core;
 
 namespace ADAssessment.Infrastructure.Ldap
 {
     /// <summary>
     /// Active Directory'den salt-okunur (read-only) olarak kullanıcı hesabı verilerini
-    /// çeken altyapı sınıfı. Bellek dostu ve sayfalı (paginated) mimari kullanır.
-    /// </summary> // 👈 BURASI DÜZELTİLDİ
+    /// çeken altyapı sınıfı. Zero Trust LDAPS (Port 636), gMSA ve şifreli kimlik doğrulama destekler.
+    /// </summary>
     public sealed class LdapDataExtractor
     {
-        // 4000+ kullanıcılı sistemlerde RAM patlamasını önlemek için sayfa boyutu sınırı
         private const int DefaultPageSize = 500;
 
-        // Ağ trafiğini ve RAM allocation'ı minimize etmek için sadece analizde kullanılacak öznitelikler çekilir
         private static readonly string[] UserProperties =
         {
             "sAMAccountName",
@@ -26,38 +25,99 @@ namespace ADAssessment.Infrastructure.Ldap
             "lastLogonTimestamp",
             "adminCount",
             "memberOf",
-            "servicePrincipalName" //kerberoasting
+            "servicePrincipalName"
         };
 
-        private readonly string _ldapPath;
+        private readonly LdapConnectionOptions _options;
 
-        public LdapDataExtractor(string ldapPath)
+        /// <summary>
+        /// Konfigürasyon nesnesi ile LDAPS ve gMSA uyumlu kurucu metod.
+        /// </summary>
+        public LdapDataExtractor(LdapConnectionOptions options)
         {
-            if (string.IsNullOrWhiteSpace(ldapPath))
+            ArgumentNullException.ThrowIfNull(options);
+            if (string.IsNullOrWhiteSpace(options.LdapPath))
             {
-                throw new ArgumentException("LDAP path boş olamaz.", nameof(ldapPath));
+                throw new ArgumentException("LDAP path boş olamaz.", nameof(options));
             }
-            _ldapPath = ldapPath;
+            _options = options;
         }
 
-        /// AD üzerindeki kullanıcı nesnelerini çeker ve Core katmanındaki modele haritalar (Map eder).
+        /// <summary>
+        /// Geriye dönük uyumluluk sağlayan aşırı yüklenmiş kurucu metod.
+        /// Lab/Test ortamlarında geriye dönük uyumluluk için AllowUnsecureFallback=true set eder.
+        /// </summary>
+        public LdapDataExtractor(string ldapPath, string? username = null, string? password = null, bool useLdaps = false)
+            : this(new LdapConnectionOptions
+            {
+                LdapPath = ldapPath,
+                Username = username,
+                Password = password,
+                UseLdaps = useLdaps || ldapPath.Contains(":636"),
+                AllowUnsecureFallback = true
+            })
+        {
+        }
+
+        /// <summary>
+        /// AD üzerindeki kullanıcı nesnelerini çeker ve Core katmanındaki modele haritalar.
+        /// </summary>
         public IReadOnlyList<AdUserAccount> GetActiveUsers()
         {
-            var results = new List<AdUserAccount>();
+            string formattedPath = _options.GetFormattedLdapPath();
 
-            // using var yapısı: İşlem bittiği an bellekten (RAM) anında temizlenir (Anti-Memory Leak)
-            using var rootEntry = new DirectoryEntry(_ldapPath)
+            // Zero Trust Güvenlik Denetimi:
+            // Eğer LDAPS kullanılmıyorsa ve Unsecure Fallback kapalıysa bağlantıyı reddet!
+            if (!_options.UseLdaps && !_options.AllowUnsecureFallback && !formattedPath.Contains(":636"))
             {
-                AuthenticationType = AuthenticationTypes.Secure | AuthenticationTypes.Sealing
-            };
+                throw new SecurityException(
+                    "ZERO TRUST UYARISI: Şifresiz LDAP (Port 389) üzerinden bağlantı reddedildi. " +
+                    "Bağlantıyı LDAPS (Port 636) olarak yapılandırın veya test ortamı için AllowUnsecureFallback=true yapın.");
+            }
+
+            try
+            {
+                return QueryDirectory(formattedPath, _options.UseLdaps || formattedPath.Contains(":636"));
+            }
+            catch (Exception ex) when (_options.AllowUnsecureFallback && (_options.UseLdaps || formattedPath.Contains(":636")))
+            {
+                Console.WriteLine($"[*] [LDAPS UYARISI] Port 636 (SSL) bağlantısı kurulamadı ({ex.Message}). Fallback: Kerberos Sealing (Port 389) deneniyor...");
+
+                string fallbackPath = _options.LdapPath;
+                if (fallbackPath.StartsWith("LDAPS://", StringComparison.OrdinalIgnoreCase))
+                {
+                    fallbackPath = "LDAP://" + fallbackPath.Substring(8);
+                }
+                fallbackPath = fallbackPath.Replace(":636", "");
+
+                return QueryDirectory(fallbackPath, useLdaps: false);
+            }
+        }
+
+        private IReadOnlyList<AdUserAccount> QueryDirectory(string path, bool useLdaps)
+        {
+            var results = new List<AdUserAccount>();
+            var authType = AuthenticationTypes.Secure;
+            if (useLdaps)
+            {
+                authType |= AuthenticationTypes.SecureSocketsLayer;
+            }
+            else
+            {
+                authType |= AuthenticationTypes.Sealing; // Kerberos Sealing
+            }
+
+            using var rootEntry = string.IsNullOrEmpty(_options.Username)
+                ? new DirectoryEntry(path) { AuthenticationType = authType }
+                : new DirectoryEntry(path, _options.Username, _options.Password, authType);
 
             using var searcher = new DirectorySearcher(rootEntry)
             {
                 Filter = "(&(objectCategory=person)(objectClass=user))",
-                PageSize = DefaultPageSize,
+                PageSize = _options.PageSize > 0 ? _options.PageSize : DefaultPageSize,
                 SearchScope = SearchScope.Subtree,
-                CacheResults = false,             // Sonuçları RAM'de önbelleğe almayarak sunucu yükünü hafifletir
-                ReferralChasing = ReferralChasingOption.None
+                CacheResults = false,
+                ReferralChasing = ReferralChasingOption.All
             };
 
             foreach (var propertyName in UserProperties)
@@ -77,7 +137,6 @@ namespace ADAssessment.Infrastructure.Ldap
 
         private static AdUserAccount MapToUserAccount(SearchResult result)
         {
-            //servicePrincipalName çoklu değer (multi-valued) içeren bir alandır, listeye çeviriyoruz
             var spnList = new List<string>();
             if (result.Properties.Contains("servicePrincipalName"))
             {
@@ -95,7 +154,7 @@ namespace ADAssessment.Infrastructure.Ldap
                 PasswordLastSet = GetFileTimeAsDateTime(result, "pwdLastSet"),
                 LastLogonTimestamp = GetFileTimeAsDateTime(result, "lastLogonTimestamp"),
                 IsAdminCountSet = GetInt(result, "adminCount") == 1,
-                MemberOfCount = result.Properties.Contains("memberOf") ? result.Properties["memberOf"].Count : 0, // 👈 BURAYA VİRGÜL EKLENDİ
+                MemberOfCount = result.Properties.Contains("memberOf") ? result.Properties["memberOf"].Count : 0,
                 ServicePrincipalNames = spnList
             };
         }
@@ -136,7 +195,6 @@ namespace ADAssessment.Infrastructure.Ldap
             {
                 try
                 {
-                    // Active Directory'nin Integer8 (LargeInteger) COM nesnesini çözmek için Reflection kullanımı
                     Type comType = rawValue.GetType();
                     int highPart = (int)comType.InvokeMember("HighPart", BindingFlags.GetProperty, null, rawValue, null)!;
                     int lowPart = (int)comType.InvokeMember("LowPart", BindingFlags.GetProperty, null, rawValue, null)!;

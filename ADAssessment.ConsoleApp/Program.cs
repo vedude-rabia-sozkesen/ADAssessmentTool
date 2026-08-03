@@ -1,7 +1,9 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using ADAssessment.Core;
+using ADAssessment.Infrastructure.Configuration;
 using ADAssessment.Infrastructure.Ldap;
+using ADAssessment.Infrastructure.Logging;
 
 namespace ADAssessment.ConsoleApp
 {
@@ -12,21 +14,21 @@ namespace ADAssessment.ConsoleApp
             Console.WriteLine("[*] Active Directory Güvenlik Analiz Aracı Başlatılıyor...");
             try
             {
-                // 1. LDAP Bağlantısı ve Veri Çekme
-                string ldapPath = "LDAP://192.168.92.100/DC=lab,DC=local"; 
-                Console.WriteLine($"[*] {ldapPath} adresine bağlantı kuruluyor...");
+                // 1. Secret Resolver ile Şifresiz/Hardcoded Olmayan Güvenli Konfigürasyon Çözme
+                ISecretResolver secretResolver = new EnvironmentSecretResolver();
+                LdapConnectionOptions options = secretResolver.ResolveLdapOptions();
 
-                var extractor = new LdapDataExtractor(ldapPath); //ldap verilerini çekmek için 
+                Console.WriteLine($"[*] {options.GetFormattedLdapPath()} adresine Zero Trust LDAPS bağlantısı kuruluyor...");
+
+                var extractor = new LdapDataExtractor(options);
                 Console.WriteLine("[*] Kullanıcı verileri sayfalı (paged) olarak çekiliyor...");
 
-                // Orijinal kodundaki gibi direkt IReadOnlyList<AdUserAccount> dönen metodu çağırıyoruz
                 var users = extractor.GetActiveUsers();
                 Console.WriteLine($"[+] Başarıyla {users.Count} adet kullanıcı hesabı analiz için çekildi.\n");
 
                 // 2. Kuralların Tanımlanması ve Çalıştırılması
                 Console.WriteLine("[*] Güvenlik analizleri başlatılıyor...\n");
 
-                // Tüm kuralları (10 adet) bir listede topluyoruz
                 var rules = new List<IComplianceRule>
                 {
                     new KerberoastingRule(),            // AD-001
@@ -41,10 +43,17 @@ namespace ADAssessment.ConsoleApp
                     new DesEncryptionAllowedRule()      // AD-010
                 };
 
-                // Kuralları sırayla döngüye sokup çalıştırıyoruz
+                // No-Code JSON Kural Deposundan Dinamik Kuralları Yükleme (No-Code Rule Engine)
+                var jsonRepository = new JsonRuleRepository();
+                var dynamicRules = jsonRepository.LoadRules();
+                rules.AddRange(dynamicRules);
+
+                var results = new List<RuleResult>();
+
                 foreach (var rule in rules)
                 {
                     var result = rule.Execute(users);
+                    results.Add(result);
 
                     Console.WriteLine("==================================================");
                     Console.WriteLine($"Kural ID: {result.RuleId}");
@@ -66,6 +75,10 @@ namespace ADAssessment.ConsoleApp
                     }
                     Console.WriteLine();
                 }
+
+                // 3. Denetim İzleme (Audit Logging) Kaydı
+                IAuditLogger auditLogger = new AuditLogger();
+                auditLogger.LogAssessment(Environment.UserName, users.Count, results);
 
             }
             catch (Exception ex)

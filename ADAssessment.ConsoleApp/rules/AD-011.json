@@ -1,0 +1,12 @@
+{
+  "ruleId": "AD-011",
+  "name": "No-Code Test: Parola Gerektirmeyen Hesaplar (JSON Rule)",
+  "description": "Kod derlemeden (No-Code) dışarıdan JSON dosyası ile dinamik olarak yüklenen güvenlik kontrolü.",
+  "frameworkMapping": "CIS Controls v8 - 5.2 / No-Code Rule Engine Demo",
+  "remediation": "1. Şifre zorunluluğunu aktifleştirin.\n2. Hesaba güçlü parola atayın.",
+  "targetProperty": "UserAccountControl",
+  "operator": "BitwiseAND",
+  "value": 32,
+  "condition": "NotEqualZero",
+  "riskLevel": "High"
+}
