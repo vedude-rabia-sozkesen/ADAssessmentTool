@@ -1,10 +1,11 @@
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace ADAssessment.Core
 {
     /// <summary>
     /// Kod derlemeden (No-Code) dışarıdan JSON/YAML dosyası ile tanımlanan
-    /// bir güvenlik kuralının veri sözleşmesidir (Schema Model).
+    /// tekli veya çoklu (AND/OR) mantıksal güvenlik kuralı veri sözleşmesidir.
     /// </summary>
     public sealed class JsonRuleDefinition
     {
@@ -23,34 +24,67 @@ namespace ADAssessment.Core
         [JsonPropertyName("remediation")]
         public string Remediation { get; set; } = string.Empty;
 
+        [JsonPropertyName("riskLevel")]
+        public string RiskLevel { get; set; } = "Medium"; // "High", "Medium", "Low"
+
         /// <summary>
-        /// Analiz edilecek kullanıcı özniteliği. Örn: "UserAccountControl", "LastLogonTimestamp", "ServicePrincipalNames"
+        /// Çoklu koşul birleştirme operatörü: "AND", "OR"
+        /// </summary>
+        [JsonPropertyName("logicalOperator")]
+        public string LogicalOperator { get; set; } = "AND";
+
+        /// <summary>
+        /// Tekli koşul için hedef öznitelik. (Çoklu koşul kullanılmıyorsa)
         /// </summary>
         [JsonPropertyName("targetProperty")]
         public string TargetProperty { get; set; } = string.Empty;
 
         /// <summary>
-        /// Karşılaştırma operatörü. Örn: "BitwiseAND", "Equals", "GreaterThanDays", "NotEmpty"
+        /// Tekli koşul için operatör. (Çoklu koşul kullanılmıyorsa)
         /// </summary>
         [JsonPropertyName("operator")]
         public string Operator { get; set; } = string.Empty;
 
         /// <summary>
-        /// Karşılaştırılacak değer. Örn: 32, 65536, 90, "MSSQLSvc"
+        /// Tekli koşul için değer.
         /// </summary>
         [JsonPropertyName("value")]
         public object? Value { get; set; }
 
         /// <summary>
-        /// Koşul sonucu kontrolü. Örn: "NotEqualZero", "EqualsZero", "IsTrue", "IsFalse"
+        /// Tekli koşul için sonuç denetimi ("NotEqualZero", "EqualsZero", "IsTrue", "IsFalse")
         /// </summary>
         [JsonPropertyName("condition")]
         public string Condition { get; set; } = string.Empty;
 
         /// <summary>
-        /// Riskin büyüklüğü. Örn: "High", "Medium", "Low"
+        /// Karmaşık kurallar için iç içe (nested) koşul listesi
         /// </summary>
-        [JsonPropertyName("riskLevel")]
-        public string RiskLevel { get; set; } = "Medium";
+        [JsonPropertyName("conditions")]
+        public List<RuleConditionNode>? Conditions { get; set; }
+    }
+
+    /// <summary>
+    /// Çoklu/Karmaşık (Nested) kural düğümü
+    /// </summary>
+    public sealed class RuleConditionNode
+    {
+        [JsonPropertyName("targetProperty")]
+        public string TargetProperty { get; set; } = string.Empty;
+
+        [JsonPropertyName("operator")]
+        public string Operator { get; set; } = string.Empty;
+
+        [JsonPropertyName("value")]
+        public object? Value { get; set; }
+
+        [JsonPropertyName("condition")]
+        public string Condition { get; set; } = string.Empty;
+
+        [JsonPropertyName("logicalOperator")]
+        public string LogicalOperator { get; set; } = "AND";
+
+        [JsonPropertyName("conditions")]
+        public List<RuleConditionNode>? Conditions { get; set; }
     }
 }

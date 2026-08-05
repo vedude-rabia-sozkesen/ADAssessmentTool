@@ -1,0 +1,31 @@
+{
+  "ruleId": "AD-012",
+  "name": "Kritik Admin Hesabı Güvenlik İhlali (Nested AND/OR Rule)",
+  "description": "Domain Admin olan VE (Parolası dolmayan VEYA 90 gündür girmemiş) kritik hesap kontrolü.",
+  "frameworkMapping": "CIS Controls v8 - 5.4 / Universal JSON Rule Engine",
+  "remediation": "1. Admin hesabının şifre geçerlilik ilkesini kontrol edin.\n2. Kullanılmayan yetkili hesapları pasife alın.",
+  "riskLevel": "High",
+  "logicalOperator": "AND",
+  "conditions": [
+    {
+      "targetProperty": "IsAdminCountSet",
+      "operator": "Equals",
+      "value": "true"
+    },
+    {
+      "logicalOperator": "OR",
+      "conditions": [
+        {
+          "targetProperty": "UserAccountControl",
+          "operator": "BitwiseAND",
+          "value": 65536
+        },
+        {
+          "targetProperty": "LastLogonTimestamp",
+          "operator": "GreaterThanDays",
+          "value": 90
+        }
+      ]
+    }
+  ]
+}
