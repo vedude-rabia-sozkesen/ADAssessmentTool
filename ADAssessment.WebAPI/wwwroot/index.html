@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AD Assessment & Security Compliance Tool</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <!-- GİRİŞ EKRANI (JWT LOGIN) -->
+    <div id="loginSection" class="auth-container">
+        <div class="auth-card">
+            <div class="brand">
+                <div class="shield-icon">🛡️</div>
+                <h2>AD Assessment Portal</h2>
+                <p>Zero Trust Active Directory Güvenlik Analizi</p>
+            </div>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="username">Kullanıcı Adı</label>
+                    <input type="text" id="username" placeholder="admin" required value="admin">
+                </div>
+                <div class="form-group">
+                    <label for="password">Şifre</label>
+                    <input type="password" id="password" placeholder="••••••••" required value="Admin123!">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Giriş Yap (JWT Auth)</button>
+            </form>
+            <div id="loginError" class="alert alert-danger hidden"></div>
+        </div>
+    </div>
+
+    <!-- ANA DASHBOARD (GİRİŞ YAPILDIKTAN SONRA) -->
+    <div id="dashboardSection" class="dashboard-container hidden">
+        
+        <!-- Üst Navigasyon -->
+        <header class="top-nav">
+            <div class="nav-brand">
+                <span class="shield-mini">🛡️</span>
+                <span class="nav-title">AD Security Assessment Engine</span>
+                <span class="badge badge-zero-trust">Zero Trust LDAPS (Port 636)</span>
+            </div>
+            <div class="user-menu">
+                <span id="userBadge" class="user-name">Giriş Yapıldı</span>
+                <button id="logoutBtn" class="btn btn-sm btn-outline">Çıkış Yap</button>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <!-- İstatistik Kartları -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon icon-users">👥</div>
+                    <div class="stat-info">
+                        <span class="stat-label">Taranan Kullanıcılar</span>
+                        <h3 id="statUsers">-</h3>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon icon-rules">📋</div>
+                    <div class="stat-info">
+                        <span class="stat-label">Çalıştırılan Kurallar</span>
+                        <h3 id="statRules">-</h3>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon icon-alert">⚠️</div>
+                    <div class="stat-info">
+                        <span class="stat-label">Tespit Edilen Zafiyetler</span>
+                        <h3 id="statVulnerabilities" class="text-danger">-</h3>
+                    </div>
+                </div>
+            </div>
+
+            <!-- İşlem Butonları ve Sekmeler -->
+            <div class="action-bar">
+                <div class="action-left">
+                    <button id="runScanBtn" class="btn btn-success btn-lg">
+                        <span class="btn-icon">⚡</span> Active Directory Taramasını Başlat
+                    </button>
+                </div>
+                <div class="tab-buttons">
+                    <button class="tab-btn active" data-tab="reportsTab">Zafiyet Raporları</button>
+                    <button class="tab-btn" data-tab="nocodeTab">➕ No-Code Kural Ekle</button>
+                    <button class="tab-btn" data-tab="activeRulesTab">Aktif Kurallar</button>
+                </div>
+            </div>
+
+            <!-- İlerleme / Yükleniyor Göstergesi -->
+            <div id="loadingSpinner" class="spinner-container hidden">
+                <div class="spinner"></div>
+                <p>Active Directory verileri LDAPS (Port 636) üzerinden güvenle çekiliyor ve kurallar analiz ediliyor...</p>
+            </div>
+
+            <!-- TAB 1: ZAFİYET RAPORLARI -->
+            <div id="reportsTab" class="tab-content active">
+                <div id="reportsList" class="reports-grid">
+                    <div class="empty-state">
+                        <div class="empty-icon">📊</div>
+                        <h4>Henüz Tarama Gerçekleştirilmedi</h4>
+                        <p>Active Directory zafiyet raporlarını görüntülemek için yukarıdaki <strong>"Taramayı Başlat"</strong> butonuna tıklayın.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: NO-CODE KURAL EKLEME FORMU -->
+            <div id="nocodeTab" class="tab-content hidden">
+                <div class="form-card">
+                    <h3>➕ No-Code JSON Kural Oluşturucu</h3>
+                    <p class="form-subtitle">C# kodunu değiştirmeden ve uygulamayı yeniden derlemeden anında yeni Active Directory güvenlik kuralı ekleyin.</p>
+                    
+                    <form id="noCodeRuleForm">
+                        <div class="form-row">
+                            <div class="form-group col-6">
+                                <label for="ruleId">Kural ID (Örn: AD-011)</label>
+                                <input type="text" id="ruleId" placeholder="AD-011" required>
+                            </div>
+                            <div class="form-group col-6">
+                                <label for="ruleName">Kural Adı</label>
+                                <input type="text" id="ruleName" placeholder="Smart Card Required Accounts" required>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="ruleDesc">Açıklama</label>
+                            <input type="text" id="ruleDesc" placeholder="Akıllı kart zorunluluğu bulunmayan kritik hesap kontrolü." required>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group col-4">
+                                <label for="targetProperty">Hedef Öznitelik (Property)</label>
+                                <select id="targetProperty" required>
+                                    <option value="UserAccountControl">UserAccountControl (UAC Bitwise)</option>
+                                    <option value="LastLogonTimestamp">LastLogonTimestamp (Tarih)</option>
+                                    <option value="PasswordLastSet">PasswordLastSet (Tarih)</option>
+                                    <option value="ServicePrincipalNames">ServicePrincipalNames (Liste)</option>
+                                </select>
+                            </div>
+                            <div class="form-group col-4">
+                                <label for="operator">Operatör</label>
+                                <select id="operator" required>
+                                    <option value="BitwiseAND">BitwiseAND (Bit Kontrolü)</option>
+                                    <option value="GreaterThanDays">GreaterThanDays (Günden Büyük)</option>
+                                    <option value="NotEmpty">NotEmpty (Boş Olmayan)</option>
+                                </select>
+                            </div>
+                            <div class="form-group col-4">
+                                <label for="ruleValue">Karşılaştırılacak Değer (Value)</label>
+                                <input type="text" id="ruleValue" placeholder="32" required>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group col-6">
+                                <label for="condition">Koşul</label>
+                                <select id="condition" required>
+                                    <option value="NotEqualZero">NotEqualZero (!= 0)</option>
+                                    <option value="EqualsZero">EqualsZero (== 0)</option>
+                                    <option value="IsTrue">IsTrue (Doğru)</option>
+                                </select>
+                            </div>
+                            <div class="form-group col-6">
+                                <label for="riskLevel">Risk Seviyesi</label>
+                                <select id="riskLevel" required>
+                                    <option value="High">High (Yüksek Risk)</option>
+                                    <option value="Medium">Medium (Orta Risk)</option>
+                                    <option value="Low">Low (Düşük Risk)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="remediation">Çözüm Önerisi (Remediation)</label>
+                            <textarea id="remediation" rows="3" placeholder="1. İlgili kullanıcı ayarlarını güncelleyin.&#10;2. Politika uygulayın." required></textarea>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">No-Code Kuralı Kaydet & Aktifleştir</button>
+                    </form>
+                    <div id="nocodeAlert" class="alert hidden"></div>
+                </div>
+            </div>
+
+            <!-- TAB 3: AKTİF KURALLAR LİSTESİ -->
+            <div id="activeRulesTab" class="tab-content hidden">
+                <div id="activeRulesList" class="rules-grid"></div>
+            </div>
+
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
