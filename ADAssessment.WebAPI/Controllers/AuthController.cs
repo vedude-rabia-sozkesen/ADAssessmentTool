@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using System;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using ADAssessment.Infrastructure.Configuration;
 
 namespace ADAssessment.WebAPI.Controllers
 {
@@ -11,34 +13,51 @@ namespace ADAssessment.WebAPI.Controllers
     [Route("api/[controller]")]
     public class AuthController : ControllerBase
     {
-        public static readonly string SecretKey = "ZeroTrustADAssessmentSecretSuperKey2026!";
+        public const string TokenIssuer = "ADAssessmentTool";
+        public const string TokenAudience = "ADAssessmentTool";
+
+        private readonly ISecretResolver _secretResolver;
+
+        public AuthController(ISecretResolver secretResolver)
+        {
+            _secretResolver = secretResolver;
+        }
 
         [HttpPost("login")]
+        [EnableRateLimiting("login")]
         public IActionResult Login([FromBody] LoginModel model)
         {
-            if (model.Username == "admin" && model.Password == "Admin123!")
+            ApiCredentialOptions credentials = _secretResolver.ResolveApiCredentials();
+
+            bool usernameMatches = string.Equals(model.Username, credentials.Username, StringComparison.Ordinal);
+            bool passwordMatches = PasswordHasher.Verify(model.Password, credentials.PasswordHash);
+
+            if (!usernameMatches || !passwordMatches)
             {
-                var tokenHandler = new JwtSecurityTokenHandler();
-                var key = Encoding.ASCII.GetBytes(SecretKey);
-
-                var tokenDescriptor = new SecurityTokenDescriptor
-                {
-                    Subject = new ClaimsIdentity(new[]
-                    {
-                        new Claim(ClaimTypes.Name, model.Username),
-                        new Claim(ClaimTypes.Role, "SecurityAnalyst")
-                    }),
-                    Expires = DateTime.UtcNow.AddHours(8),
-                    SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
-                };
-
-                var token = tokenHandler.CreateToken(tokenDescriptor);
-                string tokenString = tokenHandler.WriteToken(token);
-
-                return Ok(new { Token = tokenString, ExpiresInHours = 8 });
+                return Unauthorized(new { Message = "Geçersiz kullanıcı adı veya şifre." });
             }
 
-            return Unauthorized(new { Message = "Geçersiz kullanıcı adı veya şifre." });
+            JwtSigningOptions signingOptions = _secretResolver.ResolveJwtSigningOptions();
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var key = Encoding.UTF8.GetBytes(signingOptions.Key);
+
+            var tokenDescriptor = new SecurityTokenDescriptor
+            {
+                Subject = new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.Name, model.Username),
+                    new Claim(ClaimTypes.Role, "SecurityAnalyst")
+                }),
+                Issuer = TokenIssuer,
+                Audience = TokenAudience,
+                Expires = DateTime.UtcNow.AddHours(8),
+                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+            };
+
+            var token = tokenHandler.CreateToken(tokenDescriptor);
+            string tokenString = tokenHandler.WriteToken(token);
+
+            return Ok(new { Token = tokenString, ExpiresInHours = 8 });
         }
     }
 

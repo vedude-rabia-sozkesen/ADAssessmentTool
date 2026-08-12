@@ -13,6 +13,7 @@ namespace ADAssessment.Infrastructure.Logging
     public sealed class AuditLogger : IAuditLogger
     {
         private readonly string _logFilePath;
+        private readonly object _syncRoot = new();
 
         public AuditLogger(string? logFilePath = null)
         {
@@ -34,7 +35,12 @@ namespace ADAssessment.Infrastructure.Logging
 
             try
             {
-                File.AppendAllText(_logFilePath, logEntry + "\n");
+                // Eşzamanlı (concurrent) WebAPI istekleri aynı log dosyasına yazabileceğinden
+                // satırların birbirine karışmasını/kaybolmasını önlemek için senkronize ediliyor.
+                lock (_syncRoot)
+                {
+                    File.AppendAllText(_logFilePath, logEntry + "\n");
+                }
                 Console.WriteLine($"[*] [AUDIT] Tarama kaydı denetim günlüğüne işlendi: {_logFilePath}");
             }
             catch (Exception ex)

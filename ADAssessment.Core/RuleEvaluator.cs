@@ -12,6 +12,11 @@ namespace ADAssessment.Core
     /// </summary>
     public static class RuleEvaluator
     {
+        // No-Code kurallardaki RegexMatch operatörü dışarıdan (JSON dosyası/API) gelen bir
+        // desen kullanır. Kötü niyetli/dikkatsiz bir desen (catastrophic backtracking) tüm
+        // kullanıcı listesi üzerinde ReDoS'a yol açabileceğinden sabit bir timeout uygulanır.
+        private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(200);
+
         public static bool IsVulnerable(AdUserAccount user, JsonRuleDefinition rule)
         {
             // Bilgisayar hesaplarını otomatik ele (sonu '$' ile bitenler)
@@ -135,7 +140,18 @@ namespace ADAssessment.Core
             if (op.Equals("RegexMatch", StringComparison.OrdinalIgnoreCase))
             {
                 if (propVal == null) return false;
-                return Regex.IsMatch(propVal.ToString()!, valStr, RegexOptions.IgnoreCase);
+                try
+                {
+                    return Regex.IsMatch(propVal.ToString()!, valStr, RegexOptions.IgnoreCase, RegexTimeout);
+                }
+                catch (RegexMatchTimeoutException)
+                {
+                    return false;
+                }
+                catch (ArgumentException)
+                {
+                    return false;
+                }
             }
 
             return false;

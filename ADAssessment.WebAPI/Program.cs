@@ -1,6 +1,9 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
+using System;
 using System.Text;
+using System.Threading.RateLimiting;
 using ADAssessment.Core;
 using ADAssessment.Infrastructure.Configuration;
 using ADAssessment.Infrastructure.Ldap;
@@ -15,7 +18,15 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 
 // 2. JWT Bearer Kimlik Doğrulama Servisini Yapılandır
-var key = Encoding.ASCII.GetBytes(AuthController.SecretKey);
+// İmzalama anahtarı Zero Trust ISecretResolver deseni ile çözülür: Production'da
+// AD_ASSESSMENT_JWT_SECRET tanımlı değilse uygulama başlamaz (fail-closed).
+// NOT: Aşağıda DI konteynerine bu ÖRNEĞİN kendisi (AddSingleton<ISecretResolver>(instance))
+// kaydedilir - AuthController'ın token imzalarken kullandığı key ile burada doğrulama için
+// kullanılan key'in (Development'ta rastgele üretiliyor olabilir) aynı olması bunu gerektirir.
+var sharedSecretResolver = new EnvironmentSecretResolver();
+var jwtSigningOptions = sharedSecretResolver.ResolveJwtSigningOptions();
+var key = Encoding.UTF8.GetBytes(jwtSigningOptions.Key);
+
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -23,19 +34,23 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
-    options.RequireHttpsMetadata = false;
+    options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
     options.SaveToken = true;
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuerSigningKey = true,
         IssuerSigningKey = new SymmetricSecurityKey(key),
-        ValidateIssuer = false,
-        ValidateAudience = false
+        ValidateIssuer = true,
+        ValidIssuer = AuthController.TokenIssuer,
+        ValidateAudience = true,
+        ValidAudience = AuthController.TokenAudience
     };
 });
 
+builder.Services.AddAuthorization();
+
 // 3. Zero Trust & Infrastructure Servislerini DI Konteynerine Kaydet
-builder.Services.AddSingleton<ISecretResolver, EnvironmentSecretResolver>();
+builder.Services.AddSingleton<ISecretResolver>(sharedSecretResolver);
 builder.Services.AddSingleton<IAuditLogger, AuditLogger>();
 builder.Services.AddSingleton<JsonRuleRepository>();
 
@@ -59,15 +74,34 @@ builder.Services.AddTransient<IComplianceRule, CannotChangePasswordRule>();
 builder.Services.AddTransient<IComplianceRule, ReversibleEncryptionRule>();
 builder.Services.AddTransient<IComplianceRule, DesEncryptionAllowedRule>();
 
-// 4. CORS Politikası (Frontend Erişimi İçin)
-builder.Services.AddCors(options =>
+// 4. CORS Politikası — sadece appsettings.json > AllowedOrigins içinde açıkça
+// listelenen origin'lere izin verilir. Frontend zaten aynı origin'den (wwwroot)
+// serve edildiğinden varsayılan (boş liste) durumda CORS'a gerek yoktur.
+string[] allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
+if (allowedOrigins.Length > 0)
 {
-    options.AddPolicy("AllowFrontend", policy =>
+    builder.Services.AddCors(options =>
     {
-        policy.AllowAnyOrigin()
-              .AllowAnyHeader()
-              .AllowAnyMethod();
+        options.AddPolicy("AllowFrontend", policy =>
+        {
+            policy.WithOrigins(allowedOrigins)
+                  .WithMethods("GET", "POST")
+                  .AllowAnyHeader();
+        });
     });
+}
+
+// 5. Login Uç Noktası İçin Rate Limiting (Brute-force koruması)
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddFixedWindowLimiter("login", opt =>
+    {
+        opt.PermitLimit = 5;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = 0;
+    });
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
 
 var app = builder.Build();
@@ -76,10 +110,21 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
+else
+{
+    app.UseHsts();
+}
 
+app.UseHttpsRedirection();
 app.UseDefaultFiles();
 app.UseStaticFiles();
-app.UseCors("AllowFrontend");
+
+if (allowedOrigins.Length > 0)
+{
+    app.UseCors("AllowFrontend");
+}
+
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

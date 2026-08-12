@@ -7,5 +7,5 @@
   <Project Path="ADAssessment.Infrastructure/ADAssessment.Infrastructure.csproj" />
   <Project Path="ADAssessment.Plugins/ADAssessment.Plugins.csproj" />
   <Project Path="ADAssessment.WebAPI/ADAssessment.WebAPI.csproj" />
-  <Project Path="ASAssessment.ConsoleApp/ASAssessment.ConsoleApp.csproj" Id="cdded669-7275-45b0-a762-cadcaa69fd41" />
+  <Project Path="ADAssessment.ConsoleApp/ADAssessment.ConsoleApp.csproj" Id="cdded669-7275-45b0-a762-cadcaa69fd41" />
 </Solution>

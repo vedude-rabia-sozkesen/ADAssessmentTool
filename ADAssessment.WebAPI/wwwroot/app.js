@@ -47,6 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (res.ok && data.token) {
                 jwtToken = data.token;
                 localStorage.setItem('jwt_token', jwtToken);
+                localStorage.setItem('jwt_username', username);
                 showDashboard();
             } else {
                 loginError.textContent = data.message || 'Giriş başarısız. Kullanıcı adı veya şifre hatalı.';
@@ -61,6 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 2. LOGOUT
     logoutBtn.addEventListener('click', () => {
         localStorage.removeItem('jwt_token');
+        localStorage.removeItem('jwt_username');
         jwtToken = '';
         showLogin();
     });
@@ -177,12 +179,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const isVuln = rule.isVulnerable;
             const card = document.createElement('div');
             const riskClass = rule.riskLevel.toLowerCase() + '-risk';
-            
+
             card.className = `vuln-card ${isVuln ? riskClass : 'low-risk'}`;
 
             let affectedHtml = '';
             if (isVuln && rule.affectedObjects) {
-                affectedHtml = '<div class="affected-list">' + 
+                affectedHtml = '<div class="affected-list">' +
                     rule.affectedObjects.map(obj => `<span class="tag-affected">${obj}</span>`).join('') +
                     '</div>';
             }
@@ -208,7 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Authorization': `Bearer ${jwtToken}` }
             });
             const rules = await res.json();
-            
+
             activeRulesList.innerHTML = '';
             rules.forEach(r => {
                 const item = document.createElement('div');
@@ -230,7 +232,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function showDashboard() {
         loginSection.classList.add('hidden');
         dashboardSection.classList.remove('hidden');
-        document.getElementById('userBadge').textContent = 'Oturum Açık: admin (Security Analyst)';
+        const displayName = localStorage.getItem('jwt_username') || 'Kullanıcı';
+        document.getElementById('userBadge').textContent = `Oturum Açık: ${displayName} (Security Analyst)`;
     }
 
     function showLogin() {

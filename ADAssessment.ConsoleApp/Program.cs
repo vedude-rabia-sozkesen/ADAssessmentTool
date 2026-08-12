@@ -11,6 +11,12 @@ namespace ADAssessment.ConsoleApp
     {
         static void Main(string[] args)
         {
+            if (args.Length > 0 && string.Equals(args[0], "hash-password", StringComparison.OrdinalIgnoreCase))
+            {
+                RunHashPasswordCommand();
+                return;
+            }
+
             Console.WriteLine("[*] Active Directory Güvenlik Analiz Aracı Başlatılıyor...");
             try
             {
@@ -88,6 +94,75 @@ namespace ADAssessment.ConsoleApp
 
             Console.WriteLine("\n[*] İşlem tamamlandı. Çıkış yapmak için bir tuşa basın...");
             Console.ReadKey();
+        }
+
+        /// <summary>
+        /// Production ortamında WebAPI için AD_ASSESSMENT_API_PASSWORD_HASH ortam
+        /// değişkenine set edilecek PBKDF2 hash'ini üretmek üzere kullanılan yardımcı
+        /// komut. Parola ekrana yazdırılmadan (maskelenerek) okunur.
+        /// Kullanım: ADAssessment.ConsoleApp.exe hash-password
+        /// </summary>
+        private static void RunHashPasswordCommand()
+        {
+            Console.WriteLine("[*] AD_ASSESSMENT_API_PASSWORD_HASH üretimi.");
+            string password = ReadMaskedPassword("Parola girin: ");
+            string confirm = ReadMaskedPassword("Parolayı tekrar girin: ");
+
+            if (!string.Equals(password, confirm, StringComparison.Ordinal))
+            {
+                Console.WriteLine("[-] Parolalar eşleşmiyor.");
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(password))
+            {
+                Console.WriteLine("[-] Parola boş olamaz.");
+                return;
+            }
+
+            string hash = PasswordHasher.Hash(password);
+            Console.WriteLine("\n[+] AD_ASSESSMENT_API_PASSWORD_HASH ortam değişkenine set edilecek değer:");
+            Console.WriteLine(hash);
+        }
+
+        private static string ReadMaskedPassword(string prompt)
+        {
+            Console.Write(prompt);
+
+            // Standart girdi bir dosyaya/pipe'a yönlendirilmişse (örn. otomasyon/CI ortamı)
+            // ConsoleKeyInfo tabanlı maskeleme kullanılamaz; düz satır okumaya düşülür.
+            if (Console.IsInputRedirected)
+            {
+                // Yönlendirilmiş girişlerde (örn. UTF-8 BOM'lu dosya/pipe) satırın başına
+                // sızabilen BOM (U+FEFF) karakteri temizlenir.
+                string? line = Console.ReadLine();
+                return line == null ? string.Empty : line.TrimStart('﻿');
+            }
+
+            var password = new System.Text.StringBuilder();
+            ConsoleKeyInfo keyInfo;
+
+            while ((keyInfo = Console.ReadKey(intercept: true)).Key != ConsoleKey.Enter)
+            {
+                if (keyInfo.Key == ConsoleKey.Backspace)
+                {
+                    if (password.Length > 0)
+                    {
+                        password.Length--;
+                        Console.Write("\b \b");
+                    }
+                    continue;
+                }
+
+                if (!char.IsControl(keyInfo.KeyChar))
+                {
+                    password.Append(keyInfo.KeyChar);
+                    Console.Write('*');
+                }
+            }
+
+            Console.WriteLine();
+            return password.ToString();
         }
     }
 }

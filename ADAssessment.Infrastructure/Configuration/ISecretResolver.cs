@@ -12,5 +12,17 @@ namespace ADAssessment.Infrastructure.Configuration
         /// Ortam değişkenlerinden veya konfigürasyondan LdapConnectionOptions nesnesini çözer.
         /// </summary>
         LdapConnectionOptions ResolveLdapOptions();
+
+        /// <summary>
+        /// WebAPI JWT token imzalama anahtarını çözer. Production'da anahtar
+        /// tanımlı değilse çağıran taraf başlatmayı durdurmalıdır (fail-closed).
+        /// </summary>
+        JwtSigningOptions ResolveJwtSigningOptions();
+
+        /// <summary>
+        /// WebAPI giriş uç noktasının doğrulayacağı servis hesabı bilgilerini çözer.
+        /// Parola daima hash olarak döner, düz metin hiçbir zaman taşınmaz.
+        /// </summary>
+        ApiCredentialOptions ResolveApiCredentials();
     }
 }

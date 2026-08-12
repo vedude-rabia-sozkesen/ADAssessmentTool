@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using ADAssessment.Core;
@@ -10,7 +12,7 @@ using Microsoft.AspNetCore.Authorization;
 
 namespace ADAssessment.WebAPI.Controllers
 {
-    [Authorize]
+    [Authorize(Roles = "SecurityAnalyst")]
     [ApiController]
     [Route("api/[controller]")]
     public class AssessmentController : ControllerBase
@@ -19,17 +21,20 @@ namespace ADAssessment.WebAPI.Controllers
         private readonly IEnumerable<IComplianceRule> _staticRules;
         private readonly JsonRuleRepository _jsonRepository;
         private readonly IAuditLogger _auditLogger;
+        private readonly ILogger<AssessmentController> _logger;
 
         public AssessmentController(
             LdapDataExtractor extractor,
             IEnumerable<IComplianceRule> staticRules,
             JsonRuleRepository jsonRepository,
-            IAuditLogger auditLogger)
+            IAuditLogger auditLogger,
+            ILogger<AssessmentController> logger)
         {
             _extractor = extractor;
             _staticRules = staticRules;
             _jsonRepository = jsonRepository;
             _auditLogger = auditLogger;
+            _logger = logger;
         }
 
         [HttpPost("scan")]
@@ -62,9 +67,12 @@ namespace ADAssessment.WebAPI.Controllers
                     Results = results
                 });
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                return StatusCode(500, new { Status = "Error", Message = ex.Message });
+                // Ham hata mesajı (sunucu adı, dahili path, LDAP hata detayları içerebilir)
+                // client'a döndürülmez; sadece sunucu tarafı loguna yazılır.
+                _logger.LogError(ex, "AD güvenlik taraması sırasında beklenmeyen bir hata oluştu.");
+                return StatusCode(500, new { Status = "Error", Message = "Tarama sırasında beklenmeyen bir hata oluştu. Lütfen sistem yöneticisiyle iletişime geçin." });
             }
         }
     }

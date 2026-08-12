@@ -45,7 +45,9 @@ namespace ADAssessment.Infrastructure.Ldap
 
         /// <summary>
         /// Geriye dönük uyumluluk sağlayan aşırı yüklenmiş kurucu metod.
-        /// Lab/Test ortamlarında geriye dönük uyumluluk için AllowUnsecureFallback=true set eder.
+        /// Zero Trust ilkesi gereği AllowUnsecureFallback varsayılan olarak false'tur;
+        /// lab/test ortamı için Port 389 düşüşü gerekiyorsa LdapConnectionOptions tabanlı
+        /// kurucu metod ile açıkça true set edilmelidir.
         /// </summary>
         public LdapDataExtractor(string ldapPath, string? username = null, string? password = null, bool useLdaps = false)
             : this(new LdapConnectionOptions
@@ -54,7 +56,7 @@ namespace ADAssessment.Infrastructure.Ldap
                 Username = username,
                 Password = password,
                 UseLdaps = useLdaps || ldapPath.Contains(":636"),
-                AllowUnsecureFallback = true
+                AllowUnsecureFallback = false
             })
         {
         }
@@ -117,7 +119,10 @@ namespace ADAssessment.Infrastructure.Ldap
                 PageSize = _options.PageSize > 0 ? _options.PageSize : DefaultPageSize,
                 SearchScope = SearchScope.Subtree,
                 CacheResults = false,
-                ReferralChasing = ReferralChasingOption.All
+                // Referral takibi kapalı: bir saldırgan/rogue DC'nin referral yanıtıyla sorguyu
+                // kendi kontrolündeki bir sunucuya yönlendirmesi (referral injection) riskini
+                // ortadan kaldırır. Araç tek domain'i taradığından referral'a ihtiyaç yoktur.
+                ReferralChasing = ReferralChasingOption.None
             };
 
             foreach (var propertyName in UserProperties)

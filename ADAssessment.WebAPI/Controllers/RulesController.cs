@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Authorization;
 
 namespace ADAssessment.WebAPI.Controllers
 {
-    [Authorize]
+    [Authorize(Roles = "SecurityAnalyst")]
     [ApiController]
     [Route("api/[controller]")]
     public class RulesController : ControllerBase
@@ -31,15 +31,26 @@ namespace ADAssessment.WebAPI.Controllers
         [HttpPost]
         public IActionResult CreateJsonRule([FromBody] JsonRuleDefinition ruleDefinition)
         {
-            if (ruleDefinition == null || string.IsNullOrWhiteSpace(ruleDefinition.RuleId))
+            if (ruleDefinition == null || !RuleIdValidator.IsValid(ruleDefinition.RuleId))
             {
-                return BadRequest(new { Message = "Geçersiz kural tanımı. RuleId zorunludur." });
+                return BadRequest(new { Message = "Geçersiz kural tanımı. RuleId sadece harf, rakam, '-' ve '_' karakterlerinden oluşabilir (1-64 karakter)." });
             }
 
             string rulesFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "rules");
             if (!Directory.Exists(rulesFolder)) Directory.CreateDirectory(rulesFolder);
 
             string filePath = Path.Combine(rulesFolder, $"{ruleDefinition.RuleId}.json");
+
+            // Savunma derinliği: RuleIdValidator regex'i traversal karakterlerini zaten
+            // reddeder, ancak hedef yolun gerçekten rules klasörü altında kaldığı da
+            // ayrıca doğrulanır.
+            string fullRulesFolder = Path.GetFullPath(rulesFolder) + Path.DirectorySeparatorChar;
+            string fullFilePath = Path.GetFullPath(filePath);
+            if (!fullFilePath.StartsWith(fullRulesFolder, StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new { Message = "Geçersiz kural tanımı. RuleId geçersiz bir dosya yolu üretiyor." });
+            }
+
             string jsonString = JsonSerializer.Serialize(ruleDefinition, new JsonSerializerOptions { WriteIndented = true });
 
             System.IO.File.WriteAllText(filePath, jsonString);
