@@ -55,7 +55,7 @@ builder.Services.AddSingleton<IAuditLogger, AuditLogger>();
 builder.Services.AddSingleton<JsonRuleRepository>();
 
 // Active Directory Data Extractor Servisi
-builder.Services.AddScoped<LdapDataExtractor>(sp =>
+builder.Services.AddScoped<ILdapDataExtractor>(sp =>
 {
     var secretResolver = sp.GetRequiredService<ISecretResolver>();
     var options = secretResolver.ResolveLdapOptions();

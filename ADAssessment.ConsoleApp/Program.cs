@@ -92,8 +92,16 @@ namespace ADAssessment.ConsoleApp
                 Console.WriteLine($"[-] Bir Hata Oluştu: {ex.Message}");
             }
 
-            Console.WriteLine("\n[*] İşlem tamamlandı. Çıkış yapmak için bir tuşa basın...");
-            Console.ReadKey();
+            Console.WriteLine("\n[*] İşlem tamamlandı.");
+
+            // Standart giriş yönlendirilmemişse (interaktif terminal) kullanıcıdan tuşa
+            // basmasını bekle; otomasyon/CI/scheduled task gibi non-interactive çalıştırmalarda
+            // (stdin redirected) ReadKey() istisna fırlatacağından atlanır.
+            if (!Console.IsInputRedirected)
+            {
+                Console.WriteLine("Çıkış yapmak için bir tuşa basın...");
+                Console.ReadKey();
+            }
         }
 
         /// <summary>

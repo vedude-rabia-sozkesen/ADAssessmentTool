@@ -11,7 +11,7 @@ namespace ADAssessment.Infrastructure.Ldap
     /// Active Directory'den salt-okunur (read-only) olarak kullanıcı hesabı verilerini
     /// çeken altyapı sınıfı. Zero Trust LDAPS (Port 636), gMSA ve şifreli kimlik doğrulama destekler.
     /// </summary>
-    public sealed class LdapDataExtractor
+    public sealed class LdapDataExtractor : ILdapDataExtractor
     {
         private const int DefaultPageSize = 500;
 

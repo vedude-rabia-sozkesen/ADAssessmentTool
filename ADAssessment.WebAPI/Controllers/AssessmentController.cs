@@ -17,14 +17,14 @@ namespace ADAssessment.WebAPI.Controllers
     [Route("api/[controller]")]
     public class AssessmentController : ControllerBase
     {
-        private readonly LdapDataExtractor _extractor;
+        private readonly ILdapDataExtractor _extractor;
         private readonly IEnumerable<IComplianceRule> _staticRules;
         private readonly JsonRuleRepository _jsonRepository;
         private readonly IAuditLogger _auditLogger;
         private readonly ILogger<AssessmentController> _logger;
 
         public AssessmentController(
-            LdapDataExtractor extractor,
+            ILdapDataExtractor extractor,
             IEnumerable<IComplianceRule> staticRules,
             JsonRuleRepository jsonRepository,
             IAuditLogger auditLogger,
