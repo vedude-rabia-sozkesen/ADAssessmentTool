@@ -8,6 +8,7 @@ using ADAssessment.Infrastructure.Ldap;
 using ADAssessment.Infrastructure.Logging;
 using ADAssessment.Infrastructure.Configuration;
 using ADAssessment.Infrastructure.Sysvol;
+using ADAssessment.WebAPI.Models;
 
 using Microsoft.AspNetCore.Authorization;
 
@@ -91,14 +92,28 @@ namespace ADAssessment.WebAPI.Controllers
                 // uzunluklu numaralandırma için düz string sıralaması sayısal sırayla eşleşir.
                 var orderedResults = results.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
 
-                return Ok(new
+                // SIEM (Security Information and Event Management - kurumların güvenlik
+                // olaylarını merkezi topladığı sistem) entegrasyonu için hem JSON hem XML
+                // olarak sunulabilecek, kararlı bir dış sözleşme (ScanResultResponse) - istemci
+                // Accept header'ında "application/xml" isterse ASP.NET Core aynı nesneyi
+                // otomatik olarak XML'e çevirir, kod tarafında ayrı bir dallanma gerekmez.
+                var response = new ScanResultResponse
                 {
                     Status = "Success",
                     ScannedUserCount = users.Count,
                     TotalRulesExecuted = totalRulesExecuted,
                     VulnerableRulesCount = results.Count(r => r.IsVulnerable),
-                    Results = orderedResults
-                });
+                    Results = orderedResults.Select(r => new RuleResultDto
+                    {
+                        RuleId = r.RuleId,
+                        IsVulnerable = r.IsVulnerable,
+                        RiskLevel = r.RiskLevel,
+                        AffectedObjects = r.AffectedObjects.ToList(),
+                        Remediation = r.Remediation
+                    }).ToList()
+                };
+
+                return Ok(response);
             }
             catch (Exception ex)
             {

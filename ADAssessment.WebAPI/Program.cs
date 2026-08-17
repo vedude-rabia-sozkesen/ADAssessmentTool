@@ -14,7 +14,13 @@ using ADAssessment.WebAPI.Controllers;
 var builder = WebApplication.CreateBuilder(args);
 
 // 1. Controller ve API Hizmetlerini Ekle
-builder.Services.AddControllers();
+// AddXmlSerializerFormatters: SIEM (Security Information and Event Management) sistemlerinin
+// çoğu JSON'un yanında XML de kabul eder - istemci "Accept: application/xml" header'ı
+// gönderdiğinde ASP.NET Core aynı endpoint'i otomatik olarak XML üretecek şekilde çevirir
+// (content negotiation). Sadece ScanResultResponse (AssessmentController) bu formatı hedefler;
+// diğer controller'lar anonim tip veya "object" tipli üye içerdiğinden (XmlSerializer'ın
+// serileştiremediği tipler) [Produces("application/json")] ile JSON'a sabitlenir.
+builder.Services.AddControllers().AddXmlSerializerFormatters();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 

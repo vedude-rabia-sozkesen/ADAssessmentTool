@@ -15,6 +15,10 @@ namespace ADAssessment.WebAPI.Controllers
     [Authorize(Roles = "SecurityAnalyst")]
     [ApiController]
     [Route("api/[controller]")]
+    // JsonRuleDefinition.Value ("object" tipinde, No-Code kural motorunun herhangi bir JSON
+    // değerini tutabilmesi için) XmlSerializer tarafından serileştirilemez - bu controller
+    // XML content negotiation'a hiç girmesin diye JSON'a sabitlenir.
+    [Produces("application/json")]
     public class RulesController : ControllerBase
     {
         private readonly JsonRuleRepository _jsonRepository;

@@ -12,6 +12,9 @@ namespace ADAssessment.WebAPI.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    // Yanıtlar anonim tiplerle üretiliyor (XmlSerializer bunları serileştiremez) ve zaten
+    // XML'e uygun/gerekli bir içerik değil - bu controller JSON'a sabitlenir.
+    [Produces("application/json")]
     public class AuthController : ControllerBase
     {
         public const string TokenIssuer = "ADAssessmentTool";
