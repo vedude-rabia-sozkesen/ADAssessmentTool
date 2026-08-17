@@ -85,13 +85,19 @@ namespace ADAssessment.WebAPI.Controllers
                 string initiator = User.Identity?.Name ?? "WebAPI_User";
                 _auditLogger.LogAssessment(initiator, users.Count, results);
 
+                // Kurallar farklı kaynaklardan (statik, JSON, GPO) farklı sırayla geldiğinden
+                // (JSON dosyaları için dosya sistemi sıralaması garanti değildir), sonuçlar
+                // client'a dönmeden önce RuleId'ye göre sıralanır - "AD-001..AD-015" gibi sabit
+                // uzunluklu numaralandırma için düz string sıralaması sayısal sırayla eşleşir.
+                var orderedResults = results.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
+
                 return Ok(new
                 {
                     Status = "Success",
                     ScannedUserCount = users.Count,
                     TotalRulesExecuted = totalRulesExecuted,
                     VulnerableRulesCount = results.Count(r => r.IsVulnerable),
-                    Results = results
+                    Results = orderedResults
                 });
             }
             catch (Exception ex)

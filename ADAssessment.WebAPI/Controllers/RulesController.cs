@@ -68,7 +68,8 @@ namespace ADAssessment.WebAPI.Controllers
                 });
             }
 
-            return Ok(items);
+            var orderedItems = items.OrderBy(i => i.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
+            return Ok(orderedItems);
         }
 
         [HttpPost]

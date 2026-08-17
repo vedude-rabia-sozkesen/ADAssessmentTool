@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using ADAssessment.Core;
 using ADAssessment.Infrastructure.Configuration;
 using ADAssessment.Infrastructure.Ldap;
@@ -118,6 +119,11 @@ namespace ADAssessment.ConsoleApp
                     }
                     Console.WriteLine();
                 }
+
+                // Kurallar farklı kaynaklardan (statik, JSON dosyaları) geldiğinden,
+                // yazdırma sırası da RuleId'ye göre sıralanır.
+                rules = rules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
+                groupPolicyRules = groupPolicyRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
 
                 foreach (var rule in rules)
                 {
