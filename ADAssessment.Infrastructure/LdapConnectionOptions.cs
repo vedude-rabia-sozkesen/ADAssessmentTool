@@ -41,7 +41,13 @@ namespace ADAssessment.Infrastructure.Ldap
         public int PageSize { get; set; } = 500;
 
         /// <summary>
-        /// Zero Trust ilkelerine uygun olarak bağlantı adresini LDAPS (Port 636) formatına otomatik dönüştürür.
+        /// Zero Trust ilkelerine uygun olarak bağlantı adresini LDAPS (Port 636) için
+        /// hazırlar. ÖNEMLİ: ADSI'nin (System.DirectoryServices'in temelindeki Windows
+        /// dizin servisi arayüzü) LDAP sağlayıcısı SADECE "LDAP://" şemasını tanır -
+        /// "LDAPS://" geçerli bir ADSI yolu DEĞİLDİR ve E_ADS_BAD_PATHNAME (0x80005000)
+        /// hatasıyla reddedilir. SSL/TLS, şema ile değil AuthenticationTypes.SecureSocketsLayer
+        /// bayrağıyla (bkz. LdapDataExtractor.QueryDirectory) etkinleştirilir; bu metodun
+        /// tek işi şemayı "LDAP://" olarak normalize edip port 636'yı eklemektir.
         /// </summary>
         public string GetFormattedLdapPath()
         {
@@ -51,22 +57,22 @@ namespace ADAssessment.Infrastructure.Ldap
             {
                 string formatted = LdapPath;
 
-                // "LDAP://" ise "LDAPS://" olarak değiştir
-                if (formatted.StartsWith("LDAP://", StringComparison.OrdinalIgnoreCase))
+                // Yanlışlıkla "LDAPS://" girilmişse (geçersiz bir ADSI şeması) "LDAP://"'a normalize et.
+                if (formatted.StartsWith("LDAPS://", StringComparison.OrdinalIgnoreCase))
                 {
-                    formatted = "LDAPS://" + formatted.Substring(7);
+                    formatted = "LDAP://" + formatted.Substring(8);
                 }
-                else if (!formatted.StartsWith("LDAPS://", StringComparison.OrdinalIgnoreCase))
+                else if (!formatted.StartsWith("LDAP://", StringComparison.OrdinalIgnoreCase))
                 {
-                    formatted = "LDAPS://" + formatted;
+                    formatted = "LDAP://" + formatted;
                 }
 
                 // Port numarası açıkça belirtilmemişse otomatik olarak :636 ekle
-                // Örn: LDAPS://192.168.92.100/DC=lab,DC=local -> LDAPS://192.168.92.100:636/DC=lab,DC=local
-                int slashIndex = formatted.IndexOf('/', 8); // "LDAPS://" sonrasındaki ilk '/'
-                if (slashIndex > 8)
+                // Örn: LDAP://192.168.92.100/DC=lab,DC=local -> LDAP://192.168.92.100:636/DC=lab,DC=local
+                int slashIndex = formatted.IndexOf('/', 7); // "LDAP://" sonrasındaki ilk '/'
+                if (slashIndex > 7)
                 {
-                    string hostPart = formatted.Substring(8, slashIndex - 8);
+                    string hostPart = formatted.Substring(7, slashIndex - 7);
                     if (!hostPart.Contains(':'))
                     {
                         formatted = formatted.Substring(0, slashIndex) + ":636" + formatted.Substring(slashIndex);
