@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using System;
@@ -112,7 +113,23 @@ if (allowedOrigins.Length > 0)
     });
 }
 
-// 5. Login Uç Noktası İçin Rate Limiting (Brute-force koruması)
+// 5. Reverse Proxy Arkasında Barındırma (Hosting) - Kestrel (ASP.NET Core'un yerleşik web
+// sunucusu) production'da doğrudan internete/ağa açılmaz; önünde gerçek TLS sertifikasını
+// taşıyan bir reverse proxy (IIS, nginx vb.) bulunur, TLS orada sonlandırılır ve istek
+// Kestrel'e düz HTTP olarak iletilir. Bu ara katman (middleware) olmadan Kestrel, proxy'den
+// gelen isteğin ASLINDA HTTPS olduğunu bilemez - X-Forwarded-Proto/X-Forwarded-For
+// başlıklarını (proxy'nin orijinal isteğin şemasını/istemci IP'sini ilettiği standart HTTP
+// başlıkları) okuyup HttpContext'i buna göre günceller; aksi halde UseHttpsRedirection/
+// UseHsts ve "Secure" cookie/HSTS mantığı proxy arkasında hep "HTTP geldi" sanıp yanlış
+// davranır. KnownProxies/KnownNetworks varsayılanı sadece localhost'u (127.0.0.1) güvenilir
+// proxy sayar - reverse proxy başka bir sunucuda çalışıyorsa bu IP'nin/ağın burada açıkça
+// eklenmesi gerekir (aksi halde spoofing'e karşı güvenlik gereği başlıklar yok sayılır).
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+});
+
+// 6. Login Uç Noktası İçin Rate Limiting (Brute-force koruması)
 builder.Services.AddRateLimiter(options =>
 {
     options.AddFixedWindowLimiter("login", opt =>
@@ -126,6 +143,11 @@ builder.Services.AddRateLimiter(options =>
 });
 
 var app = builder.Build();
+
+// UseForwardedHeaders, pipeline'daki İLK ara katman olmalı - kendisinden sonraki her şey
+// (UseHttpsRedirection, UseHsts, kimlik doğrulama) isteğin gerçek şemasını/IP'sini bu
+// güncellemeden sonra görmeli.
+app.UseForwardedHeaders();
 
 if (app.Environment.IsDevelopment())
 {
