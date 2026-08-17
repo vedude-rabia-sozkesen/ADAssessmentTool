@@ -307,6 +307,22 @@ input:focus, select:focus, textarea:focus {
     font-size: 12px;
 }
 
+.compliance-mapping {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 6px 0;
+}
+
+.tag-compliance {
+    background: rgba(148, 163, 184, 0.1);
+    color: #94a3b8;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+}
+
 .remediation-box {
     background: rgba(15, 23, 42, 0.5);
     padding: 16px;

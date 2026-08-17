@@ -3,6 +3,7 @@
   "name": "Kritik Admin Hesabı Güvenlik İhlali (Nested AND/OR Rule)",
   "description": "Domain Admin olan VE (Parolası dolmayan VEYA 90 gündür girmemiş) kritik hesap kontrolü.",
   "frameworkMapping": "CIS Controls v8 - 5.4 / Universal JSON Rule Engine",
+  "iso27001Mapping": "ISO/IEC 27001:2022 - A.8.2 (Privileged Access Rights)",
   "remediation": "1. Admin hesabının şifre geçerlilik ilkesini kontrol edin.\n2. Kullanılmayan yetkili hesapları pasife alın.",
   "riskLevel": "High",
   "logicalOperator": "AND",

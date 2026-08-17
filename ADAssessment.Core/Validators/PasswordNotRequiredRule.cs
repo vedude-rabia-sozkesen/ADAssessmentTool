@@ -15,6 +15,7 @@ namespace ADAssessment.Core
         public string Description => "Parola gerektirmeyen (PASSWD_NOTREQD) olarak işaretlenmiş hesaplar, boş şifre ile veya şifresiz oturum açılmasına izin vererek kritik güvenlik zafiyeti oluşturur.";
 
         public string FrameworkMapping => "CIS Controls v8 - 5.2 / MITRE ATT&CK T1078 (Valid Accounts)";
+        public string Iso27001Mapping => "ISO/IEC 27001:2022 - A.8.5 (Secure Authentication)";
 
         public string Remediation => "1. Etkilenen hesapların özelliklerinden 'Password Not Required' seçeneğini kaldırın.\n" +
                                      "2. Tüm kullanıcılara güçlü ve karmaşık parolalar atayın ve boş parola kullanımını engelleyin.";

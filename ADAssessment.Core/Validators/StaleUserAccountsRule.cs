@@ -15,6 +15,7 @@ namespace ADAssessment.Core
         public string Description => "Uzun süredir (90 günden fazla) Active Directory üzerinde oturum açmamış aktif kullanıcı hesapları, saldırganlar tarafından fark edilmeden ilk erişim (Initial Access) veya kalıcılık sağlama amacıyla suiistimal edilebilir.";
 
         public string FrameworkMapping => "CIS Controls v8 - 5.3 / MITRE ATT&CK T1078.002 (Domain Accounts)";
+        public string Iso27001Mapping => "ISO/IEC 27001:2022 - A.5.18 (Access Rights)";
 
         public string Remediation => "1. Etkilenen atıl hesapların aktif olarak kullanılıp kullanılmadığını doğrulayın.\n" +
                                      "2. Kullanılmayan veya ayrılan personellere ait hesapları devre dışı bırakın (Disable) veya silin.";

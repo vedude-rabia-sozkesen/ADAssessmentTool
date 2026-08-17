@@ -20,6 +20,7 @@ namespace ADAssessment.Core
 
         // MITRE ATT&CK matrisindeki karşılığı
         public string FrameworkMapping => "MITRE ATT&CK T1558.003 (Credential Access)";
+        public string Iso27001Mapping => "ISO/IEC 27001:2022 - A.8.5 (Secure Authentication)";
 
         // Sistem yöneticileri için adım adım sıkılaştırma (Hardening) kılavuzu
         public string Remediation => "1. Kullanılmayan SPN kayıtlarını temizleyin.\n" +

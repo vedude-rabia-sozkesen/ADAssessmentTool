@@ -15,6 +15,7 @@ namespace ADAssessment.Core
         public string Description => "Store password using reversible encryption ayarı açık olan hesaplar, parolayı düz metne (cleartext) dönüştürülebilecek şekilde saklar. NTDS.dit veritabanı ele geçirilirse şifre anında açık metin olarak elde edilebilir.";
 
         public string FrameworkMapping => "CIS Controls v8 - 5.2 / MITRE ATT&CK T1552.001 (Credentials in Files)";
+        public string Iso27001Mapping => "ISO/IEC 27001:2022 - A.8.24 (Use of Cryptography)";
 
         public string Remediation => "1. Kullanıcı hesap özelliklerinden veya GPO üzerindeki 'Store passwords using reversible encryption' politikasını devre dışı (Disabled) bırakın.\n" +
                                      "2. Etkilenen kullanıcıların parolalarını hemen değiştirmesini sağlayın.";

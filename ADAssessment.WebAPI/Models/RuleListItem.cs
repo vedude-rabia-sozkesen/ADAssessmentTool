@@ -13,6 +13,7 @@ namespace ADAssessment.WebAPI.Models
         public string Name { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
         public string FrameworkMapping { get; set; } = string.Empty;
+        public string Iso27001Mapping { get; set; } = string.Empty;
 
         /// <summary>"Static" (derlenmiş C# kodu) veya "JsonFile" (rules/ klasöründeki dosya).</summary>
         public string Source { get; set; } = string.Empty;

@@ -49,6 +49,7 @@ namespace ADAssessment.WebAPI.Controllers
                     Name = rule.Name,
                     Description = rule.Description,
                     FrameworkMapping = rule.FrameworkMapping,
+                    Iso27001Mapping = rule.Iso27001Mapping,
                     Source = "Static",
                     IsEditable = false
                 });
@@ -66,6 +67,7 @@ namespace ADAssessment.WebAPI.Controllers
                     Name = rule.Name,
                     Description = rule.Description,
                     FrameworkMapping = rule.FrameworkMapping,
+                    Iso27001Mapping = rule.Iso27001Mapping,
                     Source = "JsonFile",
                     IsEditable = !hasNestedConditions,
                     Definition = dynamicRule.Definition

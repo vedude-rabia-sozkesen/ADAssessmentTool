@@ -304,6 +304,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     '</div>';
             }
 
+            // Otomatik Compliance Mapping: sadece gerçek bir zafiyet bulunduğunda gösterilir -
+            // "Informational"/güvenli sonuçlarda hangi çerçeveye eşlendiği önemli değildir.
+            let complianceHtml = '';
+            if (isVuln && (rule.frameworkMapping || rule.iso27001Mapping)) {
+                complianceHtml = '<div class="compliance-mapping">' +
+                    (rule.frameworkMapping ? `<span class="tag-compliance">${rule.frameworkMapping}</span>` : '') +
+                    (rule.iso27001Mapping ? `<span class="tag-compliance">${rule.iso27001Mapping}</span>` : '') +
+                    '</div>';
+            }
+
             let statusBadge;
             if (isInformational) {
                 statusBadge = 'KONTROL EDİLEMEDİ (Veri Sağlanamadı)';
@@ -319,6 +329,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <span class="badge badge-risk-${rule.riskLevel.toLowerCase()}">${statusBadge}</span>
                 </div>
                 ${affectedHtml}
+                ${complianceHtml}
                 ${isVuln ? `<div class="remediation-box"><strong>💡 Çözüm Önerisi:</strong><br>${rule.remediation}</div>` : ''}
             `;
 
@@ -367,12 +378,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     actionsHtml += `<button type="button" class="btn btn-sm btn-outline" data-action="delete" data-rule-id="${r.ruleId}">Sil</button>`;
                 }
 
+                const ruleComplianceHtml = (r.frameworkMapping || r.iso27001Mapping)
+                    ? '<div class="compliance-mapping">' +
+                        (r.frameworkMapping ? `<span class="tag-compliance">${r.frameworkMapping}</span>` : '') +
+                        (r.iso27001Mapping ? `<span class="tag-compliance">${r.iso27001Mapping}</span>` : '') +
+                        '</div>'
+                    : '';
+
                 item.innerHTML = `
                     <div class="vuln-header">
                         <span class="vuln-title">${r.ruleId} - ${r.name}</span>
                         ${sourceBadge}
                     </div>
                     <p style="color: #94a3b8; font-size: 13px;">${r.description}</p>
+                    ${ruleComplianceHtml}
                     ${actionsHtml ? `<div class="rule-actions" style="margin-top:10px;">${actionsHtml}</div>` : ''}
                 `;
                 activeRulesList.appendChild(item);

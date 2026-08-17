@@ -10,6 +10,10 @@
         //kuralın eşleştiği siber güvenlik çerçevesi (Örn: CIS Controls v8)
         string FrameworkMapping { get; }
 
+        //kuralın eşleştiği ISO/IEC 27001:2022 Ek A (Annex A) kontrol maddesi -
+        //Otomatik Compliance Mapping deliverable'ının ISO 27001 kısmı için
+        string Iso27001Mapping { get; }
+
         //ilgili kuralların mantıksal analizini tetikleyen ana metot
         /// <param name = "directoryData">
         //infrastructure katmanından gelen ham ve optimize edilmiş AD verisi

@@ -17,6 +17,7 @@ namespace ADAssessment.Core
         public string Description => "Group Policy üzerinde hesap kilitleme eşiği (LockoutBadCount) 0 olarak ayarlanmış - yani hesaplar hiç kilitlenmiyor. Bu, politikaya bağlı tüm hesapların sınırsız sayıda yanlış parola denemesine (brute-force / kaba kuvvet saldırısı) açık olduğu anlamına gelir.";
 
         public string FrameworkMapping => "CIS Controls v8 - 5.2 / MITRE ATT&CK T1110 (Brute Force)";
+        public string Iso27001Mapping => "ISO/IEC 27001:2022 - A.8.5 (Secure Authentication)";
 
         public string Remediation => "1. Grup İlkesi Yönetim Konsolu'ndan (GPMC) ilgili GPO'yu düzenleyin.\n" +
                                      "2. 'Account lockout threshold' değerini makul bir sayıya (örn. 5-10) ayarlayın.\n" +

@@ -18,6 +18,7 @@ namespace ADAssessment.Core
         public string Description => "Group Policy üzerinde 'Store passwords using reversible encryption' ayarı etkinleştirilmiş. Bu, o politikaya bağlı tüm hesapların parolalarının NTDS.dit içinde düz metne dönüştürülebilir şekilde saklanmasına yol açar - AD-009'dan farklı olarak tek bir hesabı değil, politikaya bağlı tüm hesapları etkiler.";
 
         public string FrameworkMapping => "CIS Controls v8 - 5.2 / MITRE ATT&CK T1552.001 (Credentials in Files)";
+        public string Iso27001Mapping => "ISO/IEC 27001:2022 - A.8.24 (Use of Cryptography)";
 
         public string Remediation => "1. Grup İlkesi Yönetim Konsolu'ndan (GPMC) ilgili GPO'yu düzenleyin.\n" +
                                      "2. 'Store passwords using reversible encryption' ayarını 'Disabled' yapın.\n" +

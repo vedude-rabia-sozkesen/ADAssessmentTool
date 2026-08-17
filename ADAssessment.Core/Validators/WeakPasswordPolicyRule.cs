@@ -19,6 +19,7 @@ namespace ADAssessment.Core
         public string Description => "SYSVOL'daki Group Policy'de tanımlı minimum parola uzunluğu, karmaşıklık zorunluluğu veya parola geçerlilik süresi endüstri standartlarının altında. Bu, politikaya bağlı tüm hesapları etkileyen domain-geneli bir risktir.";
 
         public string FrameworkMapping => "CIS Controls v8 - 5.2 / NIST SP 800-63B (Password Policy)";
+        public string Iso27001Mapping => "ISO/IEC 27001:2022 - A.5.17 (Authentication Information)";
 
         public string Remediation => "1. Grup İlkesi Yönetim Konsolu'ndan (GPMC) ilgili GPO'yu düzenleyin.\n" +
                                      "2. 'Minimum password length' değerini en az 14 karaktere çıkarın.\n" +

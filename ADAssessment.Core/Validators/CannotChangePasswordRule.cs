@@ -15,6 +15,7 @@ namespace ADAssessment.Core
         public string Description => "Kullanıcının şifresini değiştirmesini engelleyen (PASSWD_CANT_CHG) bayrağı aktif olan hesaplar, şifrenin sızması durumunda kullanıcının şifreyi kendi imkanlarıyla yenilemesini imkansız kılar.";
 
         public string FrameworkMapping => "CIS Controls v8 - 5.2 / MITRE ATT&CK T1078 (Valid Accounts)";
+        public string Iso27001Mapping => "ISO/IEC 27001:2022 - A.5.17 (Authentication Information)";
 
         public string Remediation => "1. Etkilenen hesapların özelliklerinden 'User cannot change password' seçeneğindeki işareti kaldırın.\n" +
                                      "2. Kullanıcıların periyodik parola hijyenine uymasını sağlayın.";

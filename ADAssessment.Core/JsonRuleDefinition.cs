@@ -21,6 +21,14 @@ namespace ADAssessment.Core
         [JsonPropertyName("frameworkMapping")]
         public string FrameworkMapping { get; set; } = string.Empty;
 
+        /// <summary>
+        /// ISO/IEC 27001:2022 Ek A eşlemesi - opsiyonel, eski (bu alan eklenmeden önce
+        /// oluşturulmuş) No-Code kural dosyalarıyla geriye dönük uyumluluk için varsayılan
+        /// olarak boş bırakılabilir.
+        /// </summary>
+        [JsonPropertyName("iso27001Mapping")]
+        public string Iso27001Mapping { get; set; } = string.Empty;
+
         [JsonPropertyName("remediation")]
         public string Remediation { get; set; } = string.Empty;
 

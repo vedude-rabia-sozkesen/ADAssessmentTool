@@ -16,6 +16,7 @@ namespace ADAssessment.Core
         public string Description => "Kerberos Ön Kimlik Doğrulaması (Pre-Authentication) devre dışı bırakılmış hesaplar, parola bilinmeden şifreli bilet talep edilmesine ve çevrimdışı parola kırma (offline brute-force) saldırılarına açık hale gelir.";
 
         public string FrameworkMapping => "MITRE ATT&CK T1558.004 (Steal or Forge Kerberos Tickets: AS-REP Roasting)";
+        public string Iso27001Mapping => "ISO/IEC 27001:2022 - A.8.5 (Secure Authentication)";
 
         public string Remediation => "1. Etkilenen kullanıcı hesaplarının özelliklerinden 'Do not require Kerberos preauthentication' seçeneğindeki işareti kaldırın.\n" +
                                      "2. Bu durumun zorunlu olduğu servis hesapları varsa parolalarını en az 25 karakterli ve karmaşık hale getirin.\n" +

@@ -29,6 +29,8 @@ namespace ADAssessment.WebAPI.Models
         public string RuleId { get; set; } = string.Empty;
         public bool IsVulnerable { get; set; }
         public string RiskLevel { get; set; } = string.Empty;
+        public string FrameworkMapping { get; set; } = string.Empty;
+        public string Iso27001Mapping { get; set; } = string.Empty;
 
         [XmlArray("AffectedObjects")]
         [XmlArrayItem("Object")]

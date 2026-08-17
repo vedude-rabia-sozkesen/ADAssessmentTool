@@ -208,6 +208,7 @@ namespace ADAssessment.Tests.WebAPI
             public string Name => "Fake Static Rule";
             public string Description => "Test-only stand-in for a compiled rule.";
             public string FrameworkMapping => "N/A";
+            public string Iso27001Mapping => "N/A";
             public RuleResult Execute(object directoryData) => new RuleResult { RuleId = RuleId, IsVulnerable = false, RiskLevel = "Low" };
         }
     }

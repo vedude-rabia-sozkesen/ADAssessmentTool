@@ -15,6 +15,7 @@ namespace ADAssessment.Core
         public string Description => "Sınırsız Kerberos Delegasyonu (TRUSTED_FOR_DELEGATION) yetkisi olan hesaplar, bu servise bağlanan tüm kullanıcıların (Domain Admin'ler dahil) Kerberos TGT biletlerini belleğe kaydeder. Saldırganlar bu biletleri çalarak Domain Controller'ı ele geçirebilir.";
 
         public string FrameworkMapping => "MITRE ATT&CK T1558 (Steal or Forge Kerberos Tickets)";
+        public string Iso27001Mapping => "ISO/IEC 27001:2022 - A.8.2 (Privileged Access Rights)";
 
         public string Remediation => "1. Zorunlu olmadıkça kullanıcı/servis hesaplarında Sınırsız Delegasyonu kaldırın.\n" +
                                      "2. Delegasyon gerekiyorsa Resource-Based Constrained Delegation (RBCD) veya Constrained Delegation mimarisine geçin.\n" +

@@ -8,6 +8,7 @@ using ADAssessment.Core;
 using ADAssessment.Infrastructure.Configuration;
 using ADAssessment.Tests.WebAPI.Fakes;
 using ADAssessment.WebAPI.Controllers;
+using ADAssessment.WebAPI.Models;
 
 namespace ADAssessment.Tests.WebAPI
 {
@@ -119,6 +120,33 @@ namespace ADAssessment.Tests.WebAPI
             string json = System.Text.Json.JsonSerializer.Serialize(okResult.Value);
             Assert.Contains("AD-013", json);
             Assert.Contains("Default Domain Policy", json);
+        }
+
+        [Fact]
+        public void RunScan_Result_IncludesComplianceMappingsFromRuleMetadata()
+        {
+            // Otomatik Compliance Mapping deliverable'ının regresyon testi: her bulgu,
+            // /api/rules'a ayrıca bakılmasına gerek kalmadan kendi FrameworkMapping ve
+            // Iso27001Mapping değerlerini taşımalı.
+            var users = new List<AdUserAccount>
+            {
+                new AdUserAccount { SamAccountName = "nopass", UserAccountControl = 0x0200 | 0x0020 }
+            };
+            var extractor = FakeLdapDataExtractor.Returning(users);
+            var auditLogger = new FakeAuditLogger();
+            var controller = MakeController(
+                extractor,
+                auditLogger,
+                rules: new IComplianceRule[] { new PasswordNotRequiredRule() });
+
+            var result = controller.RunScan();
+
+            var okResult = Assert.IsType<OkObjectResult>(result);
+            var response = Assert.IsType<ScanResultResponse>(okResult.Value);
+            var ruleResult = Assert.Single(response.Results);
+            Assert.Equal("AD-004", ruleResult.RuleId);
+            Assert.NotEmpty(ruleResult.FrameworkMapping);
+            Assert.Contains("ISO/IEC 27001", ruleResult.Iso27001Mapping);
         }
     }
 }

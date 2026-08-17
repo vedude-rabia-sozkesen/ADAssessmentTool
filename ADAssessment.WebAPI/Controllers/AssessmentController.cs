@@ -92,6 +92,14 @@ namespace ADAssessment.WebAPI.Controllers
                 // uzunluklu numaralandırma için düz string sıralaması sayısal sırayla eşleşir.
                 var orderedResults = results.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
 
+                // Otomatik Compliance Mapping: her bulgunun (finding) hangi çerçeve
+                // kontrolüne karşılık geldiği, SIEM tüketicisinin ayrıca /api/rules'a
+                // bakmasına gerek kalmadan doğrudan sonuçta görünsün diye burada eklenir.
+                var ruleMetadataById = rules
+                    .Concat(_groupPolicyRules)
+                    .GroupBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
                 // SIEM (Security Information and Event Management - kurumların güvenlik
                 // olaylarını merkezi topladığı sistem) entegrasyonu için hem JSON hem XML
                 // olarak sunulabilecek, kararlı bir dış sözleşme (ScanResultResponse) - istemci
@@ -103,13 +111,19 @@ namespace ADAssessment.WebAPI.Controllers
                     ScannedUserCount = users.Count,
                     TotalRulesExecuted = totalRulesExecuted,
                     VulnerableRulesCount = results.Count(r => r.IsVulnerable),
-                    Results = orderedResults.Select(r => new RuleResultDto
+                    Results = orderedResults.Select(r =>
                     {
-                        RuleId = r.RuleId,
-                        IsVulnerable = r.IsVulnerable,
-                        RiskLevel = r.RiskLevel,
-                        AffectedObjects = r.AffectedObjects.ToList(),
-                        Remediation = r.Remediation
+                        ruleMetadataById.TryGetValue(r.RuleId, out var ruleMetadata);
+                        return new RuleResultDto
+                        {
+                            RuleId = r.RuleId,
+                            IsVulnerable = r.IsVulnerable,
+                            RiskLevel = r.RiskLevel,
+                            FrameworkMapping = ruleMetadata?.FrameworkMapping ?? string.Empty,
+                            Iso27001Mapping = ruleMetadata?.Iso27001Mapping ?? string.Empty,
+                            AffectedObjects = r.AffectedObjects.ToList(),
+                            Remediation = r.Remediation
+                        };
                     }).ToList()
                 };
 

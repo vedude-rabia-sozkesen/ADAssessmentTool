@@ -15,6 +15,7 @@ namespace ADAssessment.Core
         public string Description => "Parolası 180 günden (6 aydan) daha uzun süredir değiştirilmeyen hesaplar, sızdırılmış veri tabanlarındaki (data breach) parolalarla eşleşme ve kaba kuvvet saldırılarına maruz kalma riski taşır.";
 
         public string FrameworkMapping => "CIS Controls v8 - 5.2 / MITRE ATT&CK T1110 (Brute Force)";
+        public string Iso27001Mapping => "ISO/IEC 27001:2022 - A.5.17 (Authentication Information)";
 
         public string Remediation => "1. Etkilenen kullanıcı hesaplarının parolalarını sıfırlayın ve yeni karmaşık bir parola belirlemelerini sağlayın.\n" +
                                      "2. Fine-Grained Password Policy (FGPP) uygulayarak parola yenileme sürelerini otomatikleştirin.";

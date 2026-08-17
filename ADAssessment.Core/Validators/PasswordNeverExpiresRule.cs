@@ -16,6 +16,7 @@ namespace ADAssessment.Core
         public string Description => "Parola kullanım süresi sınırsız olarak ayarlanan hesaplar, ele geçirilmeleri durumunda saldırganlara uzun süreli ve tespiti zor kalıcılık (Persistence) imkanı sağlar.";
 
         public string FrameworkMapping => "CIS Controls v8 - 5.2 / MITRE ATT&CK T1078 (Valid Accounts)";
+        public string Iso27001Mapping => "ISO/IEC 27001:2022 - A.5.17 (Authentication Information)";
 
         public string Remediation => "1. Zorunlu olmayan hesaplarda 'Password never expires' seçeneğini kaldırın.\n" +
                                      "2. Servis hesaplarında bu seçenek zorunluysa, parolayı en az 25 karakterli karmaşık hale getirin ve gMSA mimarisine geçin.\n" +

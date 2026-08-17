@@ -15,6 +15,7 @@ namespace ADAssessment.Core
         public string Description => "DES (Data Encryption Standard) şifreleme algoritması günümüzde tamamen kırılmış ve güvensiz kabul edilir. Kullanıcı hesabında Kerberos için DES kullanımına izin verilmesi, biletlerin dakikalar içinde kırılmasına yol açar.";
 
         public string FrameworkMapping => "CIS Controls v8 - 5.2 / MITRE ATT&CK T1558 (Kerberos Abuse)";
+        public string Iso27001Mapping => "ISO/IEC 27001:2022 - A.8.24 (Use of Cryptography)";
 
         public string Remediation => "1. Etkilenen hesapların özelliklerinden 'Use Kerberos DES encryption types for this account' seçeneğindeki işareti kaldırın.\n" +
                                      "2. Kerberos şifreleme türü olarak AES-128 veya AES-256 kullanımını zorunlu kılın.";

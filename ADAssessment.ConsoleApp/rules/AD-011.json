@@ -3,6 +3,7 @@
   "name": "No-Code Test: Parola Gerektirmeyen Hesaplar (JSON Rule)",
   "description": "Kod derlemeden (No-Code) dışarıdan JSON dosyası ile dinamik olarak yüklenen güvenlik kontrolü.",
   "frameworkMapping": "CIS Controls v8 - 5.2 / No-Code Rule Engine Demo",
+  "iso27001Mapping": "ISO/IEC 27001:2022 - A.8.5 (Secure Authentication)",
   "remediation": "1. Şifre zorunluluğunu aktifleştirin.\n2. Hesaba güçlü parola atayın.",
   "targetProperty": "UserAccountControl",
   "operator": "BitwiseAND",

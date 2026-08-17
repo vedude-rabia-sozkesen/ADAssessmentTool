@@ -19,6 +19,7 @@ namespace ADAssessment.Core
         public string Name => _definition.Name;
         public string Description => _definition.Description;
         public string FrameworkMapping => _definition.FrameworkMapping;
+        public string Iso27001Mapping => _definition.Iso27001Mapping;
 
         /// <summary>
         /// Bu kuralı üreten ham JSON tanımı. WebAPI katmanının kuralı listelerken/
