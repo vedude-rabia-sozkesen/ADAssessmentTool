@@ -20,10 +20,16 @@ namespace ADAssessment.WebAPI.Controllers
         private readonly JsonRuleRepository _jsonRepository;
         private readonly IReadOnlyList<IComplianceRule> _staticRules;
 
-        public RulesController(JsonRuleRepository jsonRepository, IEnumerable<IComplianceRule> staticRules)
+        public RulesController(
+            JsonRuleRepository jsonRepository,
+            IEnumerable<IComplianceRule> staticRules,
+            IEnumerable<IGroupPolicyComplianceRule> groupPolicyRules)
         {
             _jsonRepository = jsonRepository;
-            _staticRules = staticRules.ToList();
+            // GPO tabanlı kurallar da derlenmiş kod olduğundan (Source="Static") aynı
+            // listeye dahil edilir - IGroupPolicyComplianceRule zaten IComplianceRule
+            // olduğundan cast'e gerek kalmaz.
+            _staticRules = staticRules.Concat(groupPolicyRules).ToList();
         }
 
         [HttpGet]

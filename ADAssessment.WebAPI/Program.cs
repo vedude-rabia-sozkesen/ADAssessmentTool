@@ -8,6 +8,7 @@ using ADAssessment.Core;
 using ADAssessment.Infrastructure.Configuration;
 using ADAssessment.Infrastructure.Ldap;
 using ADAssessment.Infrastructure.Logging;
+using ADAssessment.Infrastructure.Sysvol;
 using ADAssessment.WebAPI.Controllers;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -62,6 +63,15 @@ builder.Services.AddScoped<ILdapDataExtractor>(sp =>
     return new LdapDataExtractor(options);
 });
 
+// SYSVOL/GPO Veri Çekici Servisi - aynı LDAP bağlantı bilgilerini (servis hesabı)
+// yeniden kullanır, ayrı env var gerekmez.
+builder.Services.AddScoped<ISysvolDataExtractor>(sp =>
+{
+    var secretResolver = sp.GetRequiredService<ISecretResolver>();
+    var options = secretResolver.ResolveLdapOptions();
+    return new SysvolDataExtractor(options);
+});
+
 // Tüm Sabit C# Uyum Kurallarını DI'a Kaydet
 builder.Services.AddTransient<IComplianceRule, KerberoastingRule>();
 builder.Services.AddTransient<IComplianceRule, AsRepRoastingRule>();
@@ -73,6 +83,11 @@ builder.Services.AddTransient<IComplianceRule, StalePasswordRule>();
 builder.Services.AddTransient<IComplianceRule, CannotChangePasswordRule>();
 builder.Services.AddTransient<IComplianceRule, ReversibleEncryptionRule>();
 builder.Services.AddTransient<IComplianceRule, DesEncryptionAllowedRule>();
+
+// SYSVOL/GPO Tabanlı Uyum Kurallarını DI'a Kaydet
+builder.Services.AddTransient<IGroupPolicyComplianceRule, WeakPasswordPolicyRule>();
+builder.Services.AddTransient<IGroupPolicyComplianceRule, ReversiblePasswordEncryptionPolicyRule>();
+builder.Services.AddTransient<IGroupPolicyComplianceRule, WeakLockoutPolicyRule>();
 
 // 4. CORS Politikası — sadece appsettings.json > AllowedOrigins içinde açıkça
 // listelenen origin'lere izin verilir. Frontend zaten aynı origin'den (wwwroot)

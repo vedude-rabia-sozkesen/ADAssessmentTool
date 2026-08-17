@@ -4,6 +4,7 @@ using ADAssessment.Core;
 using ADAssessment.Infrastructure.Configuration;
 using ADAssessment.Infrastructure.Ldap;
 using ADAssessment.Infrastructure.Logging;
+using ADAssessment.Infrastructure.Sysvol;
 
 namespace ADAssessment.ConsoleApp
 {
@@ -39,6 +40,22 @@ namespace ADAssessment.ConsoleApp
                 var users = extractor.GetActiveUsers();
                 Console.WriteLine($"[+] Başarıyla {users.Count} adet kullanıcı hesabı analiz için çekildi.\n");
 
+                // SYSVOL/GPO Verisinin Çekilmesi - LDAP'tan bağımsız bir hata kaynağı,
+                // erişilemezse GPO tabanlı kurallar sadece "veri sağlanamadı" der,
+                // kullanıcı bazlı tarama etkilenmez.
+                IReadOnlyList<GroupPolicySecuritySettings>? groupPolicies = null;
+                try
+                {
+                    Console.WriteLine("[*] SYSVOL üzerinden Group Policy güvenlik ayarları okunuyor...");
+                    var sysvolExtractor = new SysvolDataExtractor(options);
+                    groupPolicies = sysvolExtractor.GetSecuritySettings();
+                    Console.WriteLine($"[+] {groupPolicies.Count} adet GPO güvenlik politikası okundu.\n");
+                }
+                catch (Exception sysvolEx)
+                {
+                    Console.WriteLine($"[-] [SYSVOL UYARISI] Group Policy verisi okunamadı ({sysvolEx.Message}). GPO tabanlı kurallar bu taramada atlanacak.\n");
+                }
+
                 // 2. Kuralların Tanımlanması ve Çalıştırılması
                 Console.WriteLine("[*] Güvenlik analizleri başlatılıyor...\n");
 
@@ -61,11 +78,17 @@ namespace ADAssessment.ConsoleApp
                 var dynamicRules = jsonRepository.LoadRules();
                 rules.AddRange(dynamicRules);
 
+                var groupPolicyRules = new List<IGroupPolicyComplianceRule>
+                {
+                    new WeakPasswordPolicyRule(),                    // AD-013
+                    new ReversiblePasswordEncryptionPolicyRule(),    // AD-014
+                    new WeakLockoutPolicyRule()                      // AD-015
+                };
+
                 var results = new List<RuleResult>();
 
-                foreach (var rule in rules)
+                void PrintAndCollect(IComplianceRule rule, RuleResult result)
                 {
-                    var result = rule.Execute(users);
                     results.Add(result);
 
                     Console.WriteLine("==================================================");
@@ -87,6 +110,16 @@ namespace ADAssessment.ConsoleApp
                         Console.WriteLine(result.Remediation);
                     }
                     Console.WriteLine();
+                }
+
+                foreach (var rule in rules)
+                {
+                    PrintAndCollect(rule, rule.Execute(users));
+                }
+
+                foreach (var rule in groupPolicyRules)
+                {
+                    PrintAndCollect(rule, rule.Execute(groupPolicies!));
                 }
 
                 // 3. Denetim İzleme (Audit Logging) Kaydı

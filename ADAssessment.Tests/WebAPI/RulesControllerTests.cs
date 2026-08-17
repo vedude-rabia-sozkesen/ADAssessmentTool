@@ -32,7 +32,10 @@ namespace ADAssessment.Tests.WebAPI
 
         private static RulesController MakeController(string rulesFolder, IEnumerable<IComplianceRule>? staticRules = null)
         {
-            return new RulesController(new JsonRuleRepository(rulesFolder), staticRules ?? Array.Empty<IComplianceRule>());
+            return new RulesController(
+                new JsonRuleRepository(rulesFolder),
+                staticRules ?? Array.Empty<IComplianceRule>(),
+                Array.Empty<IGroupPolicyComplianceRule>());
         }
 
         private static JsonRuleDefinition SimpleDefinition(string ruleId) => new JsonRuleDefinition

@@ -7,6 +7,7 @@ using ADAssessment.Core;
 using ADAssessment.Infrastructure.Ldap;
 using ADAssessment.Infrastructure.Logging;
 using ADAssessment.Infrastructure.Configuration;
+using ADAssessment.Infrastructure.Sysvol;
 
 using Microsoft.AspNetCore.Authorization;
 
@@ -18,20 +19,26 @@ namespace ADAssessment.WebAPI.Controllers
     public class AssessmentController : ControllerBase
     {
         private readonly ILdapDataExtractor _extractor;
+        private readonly ISysvolDataExtractor _sysvolExtractor;
         private readonly IEnumerable<IComplianceRule> _staticRules;
+        private readonly IEnumerable<IGroupPolicyComplianceRule> _groupPolicyRules;
         private readonly JsonRuleRepository _jsonRepository;
         private readonly IAuditLogger _auditLogger;
         private readonly ILogger<AssessmentController> _logger;
 
         public AssessmentController(
             ILdapDataExtractor extractor,
+            ISysvolDataExtractor sysvolExtractor,
             IEnumerable<IComplianceRule> staticRules,
+            IEnumerable<IGroupPolicyComplianceRule> groupPolicyRules,
             JsonRuleRepository jsonRepository,
             IAuditLogger auditLogger,
             ILogger<AssessmentController> logger)
         {
             _extractor = extractor;
+            _sysvolExtractor = sysvolExtractor;
             _staticRules = staticRules;
+            _groupPolicyRules = groupPolicyRules;
             _jsonRepository = jsonRepository;
             _auditLogger = auditLogger;
             _logger = logger;
@@ -44,6 +51,19 @@ namespace ADAssessment.WebAPI.Controllers
             {
                 var users = _extractor.GetActiveUsers();
 
+                // SYSVOL/GPO okuma, LDAP tabanlı taramadan bağımsız bir hata kaynağı -
+                // erişilemezse (ağ/izin sorunu) tüm taramayı düşürmek yerine sadece GPO
+                // tabanlı kurallar "veri sağlanamadı" (Informational) sonucunu döner.
+                IReadOnlyList<GroupPolicySecuritySettings>? groupPolicies = null;
+                try
+                {
+                    groupPolicies = _sysvolExtractor.GetSecuritySettings();
+                }
+                catch (Exception sysvolEx)
+                {
+                    _logger.LogWarning(sysvolEx, "SYSVOL/GPO verisi okunamadı, GPO tabanlı kurallar bu taramada atlandı.");
+                }
+
                 var rules = new List<IComplianceRule>(_staticRules);
                 var dynamicRules = _jsonRepository.LoadRules();
                 rules.AddRange(dynamicRules);
@@ -55,6 +75,13 @@ namespace ADAssessment.WebAPI.Controllers
                     results.Add(rule.Execute(users));
                 }
 
+                foreach (var rule in _groupPolicyRules)
+                {
+                    results.Add(rule.Execute(groupPolicies!));
+                }
+
+                int totalRulesExecuted = rules.Count + _groupPolicyRules.Count();
+
                 string initiator = User.Identity?.Name ?? "WebAPI_User";
                 _auditLogger.LogAssessment(initiator, users.Count, results);
 
@@ -62,7 +89,7 @@ namespace ADAssessment.WebAPI.Controllers
                 {
                     Status = "Success",
                     ScannedUserCount = users.Count,
-                    TotalRulesExecuted = rules.Count,
+                    TotalRulesExecuted = totalRulesExecuted,
                     VulnerableRulesCount = results.Count(r => r.IsVulnerable),
                     Results = results
                 });

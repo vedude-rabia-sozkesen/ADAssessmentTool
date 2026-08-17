@@ -28,11 +28,18 @@ namespace ADAssessment.Tests.WebAPI
             }
         }
 
-        private AssessmentController MakeController(FakeLdapDataExtractor extractor, FakeAuditLogger auditLogger, IEnumerable<IComplianceRule>? rules = null)
+        private AssessmentController MakeController(
+            FakeLdapDataExtractor extractor,
+            FakeAuditLogger auditLogger,
+            IEnumerable<IComplianceRule>? rules = null,
+            FakeSysvolDataExtractor? sysvolExtractor = null,
+            IEnumerable<IGroupPolicyComplianceRule>? groupPolicyRules = null)
         {
             var controller = new AssessmentController(
                 extractor,
+                sysvolExtractor ?? FakeSysvolDataExtractor.Returning(Array.Empty<GroupPolicySecuritySettings>()),
                 rules ?? Array.Empty<IComplianceRule>(),
+                groupPolicyRules ?? Array.Empty<IGroupPolicyComplianceRule>(),
                 new JsonRuleRepository(_emptyRulesFolder),
                 auditLogger,
                 NullLogger<AssessmentController>.Instance);
@@ -73,6 +80,45 @@ namespace ADAssessment.Tests.WebAPI
             Assert.IsType<OkObjectResult>(result);
             Assert.True(auditLogger.WasCalled);
             Assert.Equal(1, auditLogger.LastScannedUserCount);
+        }
+
+        [Fact]
+        public void RunScan_SysvolThrows_LdapScanStillSucceeds()
+        {
+            // AssessmentController.RunScan'deki SYSVOL try/catch'inin regresyon testi:
+            // GPO verisi okunamasa bile LDAP tabanlı tarama etkilenmemeli, tüm istek
+            // 500'e düşmemeli.
+            var users = new List<AdUserAccount> { new AdUserAccount { SamAccountName = "jdoe", UserAccountControl = 0x0200 } };
+            var extractor = FakeLdapDataExtractor.Returning(users);
+            var sysvolExtractor = FakeSysvolDataExtractor.ThrowingOnAccess(new IOException("SYSVOL erişilemedi (test)"));
+            var auditLogger = new FakeAuditLogger();
+            var controller = MakeController(extractor, auditLogger, sysvolExtractor: sysvolExtractor);
+
+            var result = controller.RunScan();
+
+            Assert.IsType<OkObjectResult>(result);
+        }
+
+        [Fact]
+        public void RunScan_WithGroupPolicyRule_ExecutesItAgainstSysvolData()
+        {
+            var users = new List<AdUserAccount>();
+            var extractor = FakeLdapDataExtractor.Returning(users);
+            var auditLogger = new FakeAuditLogger();
+            var weakPolicy = new GroupPolicySecuritySettings { GpoName = "Default Domain Policy", MinimumPasswordLength = 4, PasswordComplexityEnabled = false };
+            var sysvolExtractor = FakeSysvolDataExtractor.Returning(new[] { weakPolicy });
+            var controller = MakeController(
+                extractor,
+                auditLogger,
+                sysvolExtractor: sysvolExtractor,
+                groupPolicyRules: new IGroupPolicyComplianceRule[] { new WeakPasswordPolicyRule() });
+
+            var result = controller.RunScan();
+
+            var okResult = Assert.IsType<OkObjectResult>(result);
+            string json = System.Text.Json.JsonSerializer.Serialize(okResult.Value);
+            Assert.Contains("AD-013", json);
+            Assert.Contains("Default Domain Policy", json);
         }
     }
 }
