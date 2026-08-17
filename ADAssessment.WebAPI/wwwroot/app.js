@@ -1,6 +1,8 @@
 document.addEventListener('DOMContentLoaded', () => {
     const API_BASE = '/api';
     let jwtToken = localStorage.getItem('jwt_token') || '';
+    let editingRuleId = null;
+    let currentRulesCache = [];
 
     // DOM Elementleri
     const loginSection = document.getElementById('loginSection');
@@ -14,6 +16,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const activeRulesList = document.getElementById('activeRulesList');
     const noCodeRuleForm = document.getElementById('noCodeRuleForm');
     const nocodeAlert = document.getElementById('nocodeAlert');
+    const nocodeSubmitBtn = document.getElementById('nocodeSubmitBtn');
+    const nocodeCancelEditBtn = document.getElementById('nocodeCancelEditBtn');
+    const ruleIdInput = document.getElementById('ruleId');
 
     // Stats
     const statUsers = document.getElementById('statUsers');
@@ -25,6 +30,22 @@ document.addEventListener('DOMContentLoaded', () => {
         showDashboard();
     } else {
         showLogin();
+    }
+
+    // Sunucudan gelen yanıtı güvenli şekilde JSON'a çevirir - gövdesi boş olan
+    // yanıtlarda (ör. varsayılan 401 challenge) res.json() istisna fırlatabildiğinden
+    // her fetch çağrısı bu yardımcıyı kullanır.
+    async function safeParseJson(res) {
+        try {
+            return await res.json();
+        } catch {
+            return {};
+        }
+    }
+
+    function handleUnauthorized() {
+        alert('Oturum süreniz doldu. Lütfen tekrar giriş yapın.');
+        logoutBtn.click();
     }
 
     // 1. JWT LOGIN
@@ -42,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ username, password })
             });
 
-            const data = await res.json();
+            const data = await safeParseJson(res);
 
             if (res.ok && data.token) {
                 jwtToken = data.token;
@@ -81,8 +102,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
-            const data = await res.json();
             loadingSpinner.classList.add('hidden');
+
+            if (res.status === 401) {
+                handleUnauthorized();
+                return;
+            }
+
+            const data = await safeParseJson(res);
 
             if (res.ok) {
                 statUsers.textContent = data.scannedUserCount;
@@ -90,25 +117,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 statVulnerabilities.textContent = data.vulnerableRulesCount;
 
                 renderReports(data.results);
-            } else if (res.status === 401) {
-                alert('Oturum süreniz doldu. Lütfen tekrar giriş yapın.');
-                logoutBtn.click();
             } else {
                 reportsList.innerHTML = `<div class="alert alert-danger">Tarama Hatası: ${data.message || 'Bilinmeyen hata'}</div>`;
             }
         } catch (err) {
             loadingSpinner.classList.add('hidden');
-            reportsList.innerHTML = `<div class="alert alert-danger">Baglantı Hatası: ${err.message}</div>`;
+            reportsList.innerHTML = `<div class="alert alert-danger">Bağlantı Hatası: ${err.message}</div>`;
         }
     });
 
-    // 4. NO-CODE KURAL EKLE (POST /api/rules)
+    // 4. NO-CODE KURAL EKLE / DÜZENLE (POST veya PUT /api/rules)
     noCodeRuleForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         nocodeAlert.classList.add('hidden');
 
         const ruleDefinition = {
-            ruleId: document.getElementById('ruleId').value,
+            ruleId: ruleIdInput.value,
             name: document.getElementById('ruleName').value,
             description: document.getElementById('ruleDesc').value,
             targetProperty: document.getElementById('targetProperty').value,
@@ -120,9 +144,13 @@ document.addEventListener('DOMContentLoaded', () => {
             frameworkMapping: 'No-Code Web UI Generator'
         };
 
+        const isEditing = !!editingRuleId;
+        const url = isEditing ? `${API_BASE}/rules/${encodeURIComponent(editingRuleId)}` : `${API_BASE}/rules`;
+        const method = isEditing ? 'PUT' : 'POST';
+
         try {
-            const res = await fetch(`${API_BASE}/rules`, {
-                method: 'POST',
+            const res = await fetch(url, {
+                method,
                 headers: {
                     'Authorization': `Bearer ${jwtToken}`,
                     'Content-Type': 'application/json'
@@ -130,17 +158,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify(ruleDefinition)
             });
 
-            const data = await res.json();
+            if (res.status === 401) {
+                handleUnauthorized();
+                return;
+            }
+
+            const data = await safeParseJson(res);
 
             if (res.ok) {
                 nocodeAlert.className = 'alert alert-success';
-                nocodeAlert.textContent = '🎉 No-Code JSON Kuralı Başarıyla Oluşturuldu ve Sisteme Eklendi!';
+                nocodeAlert.textContent = isEditing
+                    ? '✅ No-Code JSON Kuralı Başarıyla Güncellendi!'
+                    : '🎉 No-Code JSON Kuralı Başarıyla Oluşturuldu ve Sisteme Eklendi!';
                 nocodeAlert.classList.remove('hidden');
-                noCodeRuleForm.reset();
+                cancelEdit();
                 loadActiveRules();
             } else {
                 nocodeAlert.className = 'alert alert-danger';
-                nocodeAlert.textContent = data.message || 'Kural eklenirken hata oluştu.';
+                nocodeAlert.textContent = data.message || 'Kural kaydedilirken hata oluştu.';
                 nocodeAlert.classList.remove('hidden');
             }
         } catch (err) {
@@ -149,6 +184,82 @@ document.addEventListener('DOMContentLoaded', () => {
             nocodeAlert.classList.remove('hidden');
         }
     });
+
+    nocodeCancelEditBtn.addEventListener('click', () => {
+        cancelEdit();
+        nocodeAlert.classList.add('hidden');
+    });
+
+    // 5. AKTİF KURALLAR: DÜZENLE / SİL (event delegation)
+    activeRulesList.addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-action]');
+        if (!btn) return;
+
+        const ruleId = btn.dataset.ruleId;
+        if (btn.dataset.action === 'delete') {
+            deleteRule(ruleId);
+        } else if (btn.dataset.action === 'edit') {
+            const rule = currentRulesCache.find(r => r.ruleId === ruleId);
+            if (rule) startEditRule(rule);
+        }
+    });
+
+    async function deleteRule(ruleId) {
+        if (!confirm(`'${ruleId}' kuralını silmek istediğinize emin misiniz?`)) return;
+
+        try {
+            const res = await fetch(`${API_BASE}/rules/${encodeURIComponent(ruleId)}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${jwtToken}` }
+            });
+
+            if (res.status === 401) {
+                handleUnauthorized();
+                return;
+            }
+
+            if (res.ok) {
+                if (editingRuleId === ruleId) cancelEdit();
+                loadActiveRules();
+            } else {
+                const data = await safeParseJson(res);
+                alert(data.message || 'Kural silinemedi.');
+            }
+        } catch (err) {
+            alert('Bağlantı hatası: ' + err.message);
+        }
+    }
+
+    function startEditRule(rule) {
+        const def = rule.definition;
+        if (!def) return;
+
+        ruleIdInput.value = def.ruleId;
+        ruleIdInput.disabled = true; // Düzenleme sırasında RuleId değiştirilemez
+        document.getElementById('ruleName').value = def.name || '';
+        document.getElementById('ruleDesc').value = def.description || '';
+        document.getElementById('targetProperty').value = def.targetProperty || 'UserAccountControl';
+        document.getElementById('operator').value = def.operator || 'BitwiseAND';
+        document.getElementById('ruleValue').value = def.value ?? '';
+        document.getElementById('condition').value = def.condition || 'NotEqualZero';
+        document.getElementById('riskLevel').value = def.riskLevel || 'Medium';
+        document.getElementById('remediation').value = def.remediation || '';
+
+        editingRuleId = def.ruleId;
+        nocodeSubmitBtn.textContent = 'Kuralı Güncelle';
+        nocodeCancelEditBtn.classList.remove('hidden');
+        nocodeAlert.classList.add('hidden');
+
+        document.querySelector('.tab-btn[data-tab="nocodeTab"]').click();
+    }
+
+    function cancelEdit() {
+        editingRuleId = null;
+        noCodeRuleForm.reset();
+        ruleIdInput.disabled = false;
+        nocodeSubmitBtn.textContent = 'No-Code Kuralı Kaydet & Aktifleştir';
+        nocodeCancelEditBtn.classList.add('hidden');
+    }
 
     // SEKME DEĞİŞTİRME MANTIĞI
     document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -202,25 +313,54 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // AKTİF KURALLARI YÜKLE
+    // AKTİF KURALLARI YÜKLE (sabit C# kuralları + No-Code JSON kuralları birlikte)
     async function loadActiveRules() {
         activeRulesList.innerHTML = '<p>Kurallar yükleniyor...</p>';
         try {
             const res = await fetch(`${API_BASE}/rules`, {
                 headers: { 'Authorization': `Bearer ${jwtToken}` }
             });
-            const rules = await res.json();
+
+            if (res.status === 401) {
+                handleUnauthorized();
+                return;
+            }
+
+            const rules = await safeParseJson(res);
+            currentRulesCache = Array.isArray(rules) ? rules : [];
 
             activeRulesList.innerHTML = '';
-            rules.forEach(r => {
+
+            if (currentRulesCache.length === 0) {
+                activeRulesList.innerHTML = '<p>Henüz hiç kural yüklenmedi.</p>';
+                return;
+            }
+
+            currentRulesCache.forEach(r => {
                 const item = document.createElement('div');
                 item.className = 'vuln-card low-risk';
+
+                const sourceBadge = r.source === 'Static'
+                    ? '<span class="badge badge-risk-low">Sabit Kod (C#)</span>'
+                    : '<span class="badge badge-risk-low">No-Code (JSON)</span>';
+
+                let actionsHtml = '';
+                if (r.source === 'JsonFile') {
+                    if (r.isEditable) {
+                        actionsHtml += `<button type="button" class="btn btn-sm btn-outline" data-action="edit" data-rule-id="${r.ruleId}">Düzenle</button> `;
+                    } else {
+                        actionsHtml += `<span style="color:#94a3b8; font-size:12px; margin-right:8px;">Gelişmiş (nested) kural - sadece silinebilir</span>`;
+                    }
+                    actionsHtml += `<button type="button" class="btn btn-sm btn-outline" data-action="delete" data-rule-id="${r.ruleId}">Sil</button>`;
+                }
+
                 item.innerHTML = `
                     <div class="vuln-header">
                         <span class="vuln-title">${r.ruleId} - ${r.name}</span>
-                        <span class="badge badge-risk-low">${r.frameworkMapping || 'Uyum Kuralı'}</span>
+                        ${sourceBadge}
                     </div>
                     <p style="color: #94a3b8; font-size: 13px;">${r.description}</p>
+                    ${actionsHtml ? `<div class="rule-actions" style="margin-top:10px;">${actionsHtml}</div>` : ''}
                 `;
                 activeRulesList.appendChild(item);
             });

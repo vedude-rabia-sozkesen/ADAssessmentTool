@@ -37,6 +37,22 @@ Bu araç, şirketin en hassas verisi olan kimlik/erişim altyapısının **hiçb
 - Üçüncü parti kütüphane/paket eklerken kaynağı ve veri toplama davranışı gözden geçirilmeli.
 - Kod içine gerçek domain adı, sunucu adı, IP, kullanıcı adı gibi gerçek kurumsal veriler **asla hardcode edilmemeli** — örnek/test verileri kullanılmalı.
 
+## Geliştiricinin Profili ve Anlatım/Öğrenme Tarzı
+
+**Kim geliştiriyor:** Ben yeni mezun bir bilgisayar mühendisiyim. Bu projeyi hem bir ürün olarak tamamlamak hem de üzerinden **derinlemesine öğrenmek** için kullanıyorum. Bu yüzden Claude Code'un bana verdiği her açıklama, sadece "ne yapıldığını" değil, **neden o şekilde yapıldığını ve arka planındaki mantığı** da içermeli.
+
+**Açıklama yaparken uyulması gereken kurallar:**
+
+1. **Teknik terimler ilk geçtiği yerde tanımlanır.** Bir terim (örn. Kerberoasting, LDAP paging, SYSVOL, ACL, SID, DACL vb.) ilk kez kullanıldığında, parantez içinde veya bir-iki cümlelik kısa bir tanımla açıklanır. Aynı terim tekrar geçtiğinde tekrar tanımlamaya gerek yok — bir kez öğretilen terim öğrenilmiş sayılır.
+2. **Basit ama yüzeysel olmayan anlatım.** Açıklamalar karmaşık jargon yığını olmamalı, ama "bu böyledir" deyip geçmemeli de. Bir kavramın **neden** var olduğu, **hangi problemi** çözdüğü, **yanlış yapılırsa ne olur** kısaca ama net şekilde anlatılmalı.
+3. **Derinlik seviyesi: "orta-detaylı".** Amaç konuyu bir uzman gibi didik didik etmek değil, ama konuyu öğrendikten sonra zihinde boşluk/kopukluk kalmayacak kadar detay vermek. Gereksiz uzatma ve alakasız detaylardan kaçınılmalı; ama "neden böyle" sorusunun cevapsız kalmasına da izin verilmemeli.
+4. **Kod açıklamaları bağlamla birlikte verilir.** Bir güvenlik açığı veya çözüm anlatılırken sadece kod gösterilmez; şu üçlü yapı takip edilir:
+   - **Sorun neydi / risk neydi** (gerçek dünyada bir saldırgan bunu nasıl kötüye kullanabilirdi)
+   - **Neden bu şekilde çözüldü** (alternatif yaklaşımlar varsa kısaca neden tercih edilmediği)
+   - **Kodun ilgili kısmı ne işe yarıyor** (satır satır değil, mantıksal blok blok)
+5. **Öğretici ton, atlayarak geçen ton değil.** "Bunu böyle yaptık, devam edelim" yerine, yeni bir kavram/terim/yaklaşım her devreye girdiğinde bir iki cümlelik arka plan verilip sonra devam edilmeli.
+6. **Sorulduğunda daha da derinleşmeye hazır olunmalı.** Eğer bir konuda "bunu daha derinlemesine anlamak istiyorum" denirse, bu talebe kod değişikliği önerisi gibi değil, saf bir öğretim/mentorluk yaklaşımıyla yanıt verilmeli.
+
 ## Çalışma Kuralları (Claude Code için bağlayıcı talimatlar)
 
 1. **Bu dosyadaki proje tanımı ve kısıtlar her zaman referans noktasıdır.** Herhangi bir kod değişikliği, öneri veya yeni özellik bu tanımla çelişemez.
@@ -48,3 +64,4 @@ Bu araç, şirketin en hassas verisi olan kimlik/erişim altyapısının **hiçb
 5. **Her aşamada zero-trust yaklaşımıyla** revizeler/eklemeler yapılır — yeni bir bağımlılık, entegrasyon veya veri akışı eklenmeden önce güvenlik riski değerlendirilir.
 6. **Her önemli aşamada**, o noktadaki potansiyel güvenlik riski ve alınan/alınması gereken önlem ayrıca belirtilir.
 7. Araç **read-only** ilkesini ihlal edebilecek (yazma, silme, değiştirme içeren) hiçbir kod önerisi yapılmaz; böyle bir gereksinim ortaya çıkarsa madde 2'deki onay süreci işletilir.
+8. **Tüm açıklamalar, yukarıdaki "Geliştiricinin Profili ve Anlatım/Öğrenme Tarzı" bölümündeki kurallara uygun olarak yapılır.** Bu, sadece ilk kod yazımında değil, sonraki tüm sorularda, hata ayıklamada ve gözden geçirmelerde de geçerlidir.

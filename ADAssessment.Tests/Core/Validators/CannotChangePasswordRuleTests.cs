@@ -5,12 +5,14 @@ namespace ADAssessment.Tests.Core.Validators
     public class CannotChangePasswordRuleTests
     {
         private readonly CannotChangePasswordRule _rule = new();
-        private const int PasswdCantChg = 0x40;
 
         [Fact]
         public void Execute_EnabledUserCannotChangePassword_IsVulnerable()
         {
-            var user = ValidatorTestHelpers.User("svc_locked", ValidatorTestHelpers.Enabled | PasswdCantChg);
+            // IsCannotChangePassword artık UAC bitinden değil, LdapDataExtractor'ın ACL
+            // analizinden geliyor (bkz. LdapDataExtractor.IsCannotChangePasswordViaAcl) -
+            // test seviyesinde bu doğrudan property olarak set ediliyor.
+            var user = ValidatorTestHelpers.User("svc_locked", ValidatorTestHelpers.Enabled, isCannotChangePassword: true);
 
             var result = _rule.Execute(ValidatorTestHelpers.SingleUserList(user));
 
@@ -20,7 +22,7 @@ namespace ADAssessment.Tests.Core.Validators
         [Fact]
         public void Execute_DisabledUserCannotChangePassword_IsNotVulnerable()
         {
-            var user = ValidatorTestHelpers.User("svc_locked", ValidatorTestHelpers.Disabled | PasswdCantChg);
+            var user = ValidatorTestHelpers.User("svc_locked", ValidatorTestHelpers.Disabled, isCannotChangePassword: true);
 
             var result = _rule.Execute(ValidatorTestHelpers.SingleUserList(user));
 

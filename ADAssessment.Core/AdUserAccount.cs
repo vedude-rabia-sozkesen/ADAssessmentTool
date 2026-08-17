@@ -48,8 +48,12 @@ namespace ADAssessment.Core
         /// UserAccountControl bit 19 (0x80000) = TRUSTED_FOR_DELEGATION bayrağını kontrol eder.
         public bool IsUnconstrainedDelegation => (UserAccountControl & 0x80000) != 0;
 
-        /// UserAccountControl bit 6 (0x40) = PASSWD_CANT_CHG bayrağını kontrol eder.
-        public bool IsCannotChangePassword => (UserAccountControl & 0x40) != 0;
+        /// "Kullanıcı parolasını değiştiremez" kısıtlaması. DİKKAT: UserAccountControl'deki
+        /// PASSWD_CANT_CHG (0x40) bayrağı modern Active Directory'de bu ayarı YANSITMAZ —
+        /// gerçek uygulama nesnenin ACL'inde (Everyone/SELF için Change-Password özel hakkının
+        /// Deny edilmesi) gerçekleşir. Bu yüzden değer UAC bitinden değil, LdapDataExtractor'ın
+        /// ACL analizinden set edilir (bkz. LdapDataExtractor.IsCannotChangePasswordViaAcl).
+        public bool IsCannotChangePassword { get; init; }
 
         /// UserAccountControl bit 7 (0x80) = ENCRYPTED_TEXT_PASSWORD_ALLOWED bayrağını kontrol eder.
         public bool IsReversibleEncryptionAllowed => (UserAccountControl & 0x80) != 0;

@@ -42,10 +42,16 @@ namespace ADAssessment.Tests.Core
         }
 
         [Fact]
-        public void IsCannotChangePassword_ChecksBit0x40()
+        public void IsCannotChangePassword_IsPlainSettableProperty_NotDerivedFromUac()
         {
-            Assert.True(WithUac(0x40).IsCannotChangePassword);
-            Assert.False(WithUac(0x000000).IsCannotChangePassword);
+            // Modern AD'de "cannot change password" UAC bitinden değil ACL'den geliyor
+            // (bkz. LdapDataExtractor.IsCannotChangePasswordViaAcl) - bu yüzden burada
+            // UserAccountControl'den tamamen bağımsız, init ile set edilen düz bir property.
+            var user = new AdUserAccount { UserAccountControl = 0x40, IsCannotChangePassword = false };
+            Assert.False(user.IsCannotChangePassword);
+
+            var user2 = new AdUserAccount { UserAccountControl = 0, IsCannotChangePassword = true };
+            Assert.True(user2.IsCannotChangePassword);
         }
 
         [Fact]

@@ -20,6 +20,12 @@ namespace ADAssessment.Core
         public string Description => _definition.Description;
         public string FrameworkMapping => _definition.FrameworkMapping;
 
+        /// <summary>
+        /// Bu kuralı üreten ham JSON tanımı. WebAPI katmanının kuralı listelerken/
+        /// düzenlerken (edit formu doldururken) orijinal alanlara erişebilmesi için.
+        /// </summary>
+        public JsonRuleDefinition Definition => _definition;
+
         public RuleResult Execute(object directoryData)
         {
             if (directoryData is not IEnumerable<AdUserAccount> userList)

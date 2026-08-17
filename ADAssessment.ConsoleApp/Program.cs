@@ -17,6 +17,13 @@ namespace ADAssessment.ConsoleApp
                 return;
             }
 
+            if (args.Length > 0 && string.Equals(args[0], "verify-audit-log", StringComparison.OrdinalIgnoreCase))
+            {
+                string? path = args.Length > 1 ? args[1] : null;
+                RunVerifyAuditLogCommand(path);
+                return;
+            }
+
             Console.WriteLine("[*] Active Directory Güvenlik Analiz Aracı Başlatılıyor...");
             try
             {
@@ -110,6 +117,11 @@ namespace ADAssessment.ConsoleApp
         /// komut. Parola ekrana yazdırılmadan (maskelenerek) okunur.
         /// Kullanım: ADAssessment.ConsoleApp.exe hash-password
         /// </summary>
+        // OWASP A07 (Identification & Authentication Failures) gereği: aracın kendi
+        // dashboard hesabı için asgari parola uzunluğu zorunlu kılınır. Bu, dashboard'a
+        // erişimi olan bir servis/yönetici hesabı için makul bir alt sınırdır.
+        private const int MinPasswordLength = 12;
+
         private static void RunHashPasswordCommand()
         {
             Console.WriteLine("[*] AD_ASSESSMENT_API_PASSWORD_HASH üretimi.");
@@ -128,9 +140,36 @@ namespace ADAssessment.ConsoleApp
                 return;
             }
 
+            if (password.Length < MinPasswordLength)
+            {
+                Console.WriteLine($"[-] Parola en az {MinPasswordLength} karakter olmalıdır (girilen: {password.Length}).");
+                return;
+            }
+
             string hash = PasswordHasher.Hash(password);
             Console.WriteLine("\n[+] AD_ASSESSMENT_API_PASSWORD_HASH ortam değişkenine set edilecek değer:");
             Console.WriteLine(hash);
+        }
+
+        /// <summary>
+        /// audit_events.log dosyasındaki SHA-256 hash-chain'in (OWASP A09 - denetim izi
+        /// bütünlüğü) kırılıp kırılmadığını kontrol eden yardımcı komut.
+        /// Kullanım: ADAssessment.ConsoleApp.exe verify-audit-log [dosya-yolu]
+        /// </summary>
+        private static void RunVerifyAuditLogCommand(string? logFilePath)
+        {
+            var auditLogger = new AuditLogger(logFilePath);
+            AuditLogIntegrityResult result = auditLogger.VerifyIntegrity();
+
+            if (result.IsValid)
+            {
+                Console.WriteLine($"[+] Denetim izi bütünlüğü doğrulandı. {result.VerifiedEntryCount} kayıt kontrol edildi, zincir sağlam.");
+            }
+            else
+            {
+                Console.WriteLine($"[-] DENETIM IZI BÜTÜNLÜĞÜ İHLAL EDİLMİŞ! {result.FailureReason}");
+                Environment.ExitCode = 1;
+            }
         }
 
         private static string ReadMaskedPassword(string prompt)

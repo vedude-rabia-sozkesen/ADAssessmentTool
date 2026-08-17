@@ -13,7 +13,7 @@ namespace ADAssessment.Tests.Core.Validators
         public const int Enabled = 0x0200;
         public const int Disabled = 0x0202; // enabled bit'i de içerir, ACCOUNTDISABLE üstün gelir
 
-        public static AdUserAccount User(string samAccountName, int uac, bool isAdminCountSet = false, IReadOnlyList<string>? spns = null, System.DateTime? passwordLastSet = null, System.DateTime? lastLogonTimestamp = null)
+        public static AdUserAccount User(string samAccountName, int uac, bool isAdminCountSet = false, IReadOnlyList<string>? spns = null, System.DateTime? passwordLastSet = null, System.DateTime? lastLogonTimestamp = null, bool isCannotChangePassword = false)
         {
             return new AdUserAccount
             {
@@ -22,7 +22,8 @@ namespace ADAssessment.Tests.Core.Validators
                 IsAdminCountSet = isAdminCountSet,
                 ServicePrincipalNames = spns ?? System.Array.Empty<string>(),
                 PasswordLastSet = passwordLastSet,
-                LastLogonTimestamp = lastLogonTimestamp
+                LastLogonTimestamp = lastLogonTimestamp,
+                IsCannotChangePassword = isCannotChangePassword
             };
         }
 

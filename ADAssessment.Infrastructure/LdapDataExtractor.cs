@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.DirectoryServices;
 using System.Reflection;
 using System.Security;
+using System.Security.AccessControl;
 using ADAssessment.Core;
 
 namespace ADAssessment.Infrastructure.Ldap
@@ -15,6 +16,13 @@ namespace ADAssessment.Infrastructure.Ldap
     {
         private const int DefaultPageSize = 500;
 
+        // AD-DS'in "User-Change-Password" kontrol erişim hakkının well-known GUID'i.
+        // Bkz. MS-ADTS 5.1.3.2.1 - "Cannot change password" ayarı bu hakkın Everyone/SELF
+        // için Deny edilmesiyle uygulanır, userAccountControl bitiyle DEĞİL.
+        private static readonly Guid ChangePasswordRightGuid = new("ab721a53-1e2f-11d0-9819-00aa0040529b");
+        private const string EveryoneSid = "S-1-1-0";
+        private const string SelfSid = "S-1-5-10";
+
         private static readonly string[] UserProperties =
         {
             "sAMAccountName",
@@ -25,7 +33,8 @@ namespace ADAssessment.Infrastructure.Ldap
             "lastLogonTimestamp",
             "adminCount",
             "memberOf",
-            "servicePrincipalName"
+            "servicePrincipalName",
+            "nTSecurityDescriptor"
         };
 
         private readonly LdapConnectionOptions _options;
@@ -122,7 +131,10 @@ namespace ADAssessment.Infrastructure.Ldap
                 // Referral takibi kapalı: bir saldırgan/rogue DC'nin referral yanıtıyla sorguyu
                 // kendi kontrolündeki bir sunucuya yönlendirmesi (referral injection) riskini
                 // ortadan kaldırır. Araç tek domain'i taradığından referral'a ihtiyaç yoktur.
-                ReferralChasing = ReferralChasingOption.None
+                ReferralChasing = ReferralChasingOption.None,
+                // "Cannot change password" ayarını ACL üzerinden tespit edebilmek için DACL'i
+                // de aynı paged search içinde (ekstra bağlantı gerektirmeden) çekiyoruz.
+                SecurityMasks = SecurityMasks.Dacl
             };
 
             foreach (var propertyName in UserProperties)
@@ -160,8 +172,51 @@ namespace ADAssessment.Infrastructure.Ldap
                 LastLogonTimestamp = GetFileTimeAsDateTime(result, "lastLogonTimestamp"),
                 IsAdminCountSet = GetInt(result, "adminCount") == 1,
                 MemberOfCount = result.Properties.Contains("memberOf") ? result.Properties["memberOf"].Count : 0,
-                ServicePrincipalNames = spnList
+                ServicePrincipalNames = spnList,
+                IsCannotChangePassword = IsCannotChangePasswordViaAcl(result)
             };
+        }
+
+        /// <summary>
+        /// "Kullanıcı parolasını değiştiremez" kısıtlamasının gerçek uygulanma şekli olan
+        /// ACL kontrolü. Nesnenin DACL'inde Everyone veya NT AUTHORITY\SELF için
+        /// "Change Password" özel hakkının Deny edildiği bir ACE var mı diye bakar.
+        /// ACL okunamazsa (yetki/parse hatası) güvenli tarafta kalınır: kısıtlama yok varsayılır.
+        /// </summary>
+        private static bool IsCannotChangePasswordViaAcl(SearchResult result)
+        {
+            if (!result.Properties.Contains("ntsecuritydescriptor") || result.Properties["ntsecuritydescriptor"].Count == 0)
+            {
+                return false;
+            }
+
+            try
+            {
+                var sdBytes = (byte[])result.Properties["ntsecuritydescriptor"][0];
+                var rawSecurityDescriptor = new RawSecurityDescriptor(sdBytes, 0);
+                RawAcl? dacl = rawSecurityDescriptor.DiscretionaryAcl;
+                if (dacl == null) return false;
+
+                foreach (GenericAce ace in dacl)
+                {
+                    if (ace is not ObjectAce objectAce) continue;
+                    if (objectAce.AceType != AceType.AccessDeniedObject) continue;
+                    if ((objectAce.ObjectAceFlags & ObjectAceFlags.ObjectAceTypePresent) == 0) continue;
+                    if (objectAce.ObjectAceType != ChangePasswordRightGuid) continue;
+
+                    string sid = objectAce.SecurityIdentifier.Value;
+                    if (sid == SelfSid || sid == EveryoneSid)
+                    {
+                        return true;
+                    }
+                }
+            }
+            catch
+            {
+                return false;
+            }
+
+            return false;
         }
 
         private static string GetString(SearchResult result, string propertyName)

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using System;
 using System.IdentityModel.Tokens.Jwt;
@@ -17,10 +18,12 @@ namespace ADAssessment.WebAPI.Controllers
         public const string TokenAudience = "ADAssessmentTool";
 
         private readonly ISecretResolver _secretResolver;
+        private readonly ILogger<AuthController> _logger;
 
-        public AuthController(ISecretResolver secretResolver)
+        public AuthController(ISecretResolver secretResolver, ILogger<AuthController> logger)
         {
             _secretResolver = secretResolver;
+            _logger = logger;
         }
 
         [HttpPost("login")]
@@ -34,6 +37,13 @@ namespace ADAssessment.WebAPI.Controllers
 
             if (!usernameMatches || !passwordMatches)
             {
+                // OWASP A09 (Security Logging & Monitoring Failures): başarısız giriş
+                // denemeleri, brute-force tespiti/alarm üretebilmek için loglanır.
+                // Parola ASLA loglanmaz - sadece denenen kullanıcı adı ve istemci IP'si.
+                _logger.LogWarning(
+                    "Başarısız giriş denemesi. Kullanıcı adı: {AttemptedUsername}, IP: {RemoteIp}",
+                    model.Username,
+                    HttpContext.Connection.RemoteIpAddress);
                 return Unauthorized(new { Message = "Geçersiz kullanıcı adı veya şifre." });
             }
 
