@@ -91,10 +91,17 @@ namespace ADAssessment.ConsoleApp
                 {
                     results.Add(result);
 
+                    // "Informational" (örn. SYSVOL/GPO verisi okunamadığı için kural hiç
+                    // çalıştırılamadı) durumunu "Sistem Güvenli" olarak göstermek yanıltıcı
+                    // olur - kontrol edilemedi ile güvenli bulundu birbirinden ayrılmalı.
+                    string riskDurumu = result.RiskLevel == "Informational"
+                        ? "KONTROL EDİLEMEDİ (Veri Sağlanamadı)"
+                        : result.IsVulnerable ? "ZAFİYET BULUNDU!" : "Sistem Güvenli";
+
                     Console.WriteLine("==================================================");
                     Console.WriteLine($"Kural ID: {result.RuleId}");
                     Console.WriteLine($"Kural Adı: {rule.Name}");
-                    Console.WriteLine($"Risk Durumu: {(result.IsVulnerable ? "ZAFİYET BULUNDU!" : "Sistem Güvenli")}");
+                    Console.WriteLine($"Risk Durumu: {riskDurumu}");
                     Console.WriteLine($"Risk Seviyesi: {result.RiskLevel}");
                     Console.WriteLine("==================================================");
 

@@ -288,10 +288,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         results.forEach(rule => {
             const isVuln = rule.isVulnerable;
+            // "Informational" (örn. SYSVOL/GPO verisi okunamadığı için kural hiç
+            // çalıştırılamadı) durumu "GÜVENLİ" ile karıştırılmamalı - kontrol
+            // edilemeyen bir şey "güvenli" demek değildir.
+            const isInformational = rule.riskLevel === 'Informational';
             const card = document.createElement('div');
             const riskClass = rule.riskLevel.toLowerCase() + '-risk';
 
-            card.className = `vuln-card ${isVuln ? riskClass : 'low-risk'}`;
+            card.className = `vuln-card ${isVuln || isInformational ? riskClass : 'low-risk'}`;
 
             let affectedHtml = '';
             if (isVuln && rule.affectedObjects) {
@@ -300,10 +304,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     '</div>';
             }
 
+            let statusBadge;
+            if (isInformational) {
+                statusBadge = 'KONTROL EDİLEMEDİ (Veri Sağlanamadı)';
+            } else if (isVuln) {
+                statusBadge = 'ZAFİYET BULUNDU (' + rule.riskLevel + ')';
+            } else {
+                statusBadge = 'GÜVENLİ';
+            }
+
             card.innerHTML = `
                 <div class="vuln-header">
                     <span class="vuln-title">${rule.ruleId} - ${rule.name || rule.ruleId}</span>
-                    <span class="badge badge-risk-${rule.riskLevel.toLowerCase()}">${isVuln ? 'ZAFİYET BULUNDU (' + rule.riskLevel + ')' : 'GÜVENLİ'}</span>
+                    <span class="badge badge-risk-${rule.riskLevel.toLowerCase()}">${statusBadge}</span>
                 </div>
                 ${affectedHtml}
                 ${isVuln ? `<div class="remediation-box"><strong>💡 Çözüm Önerisi:</strong><br>${rule.remediation}</div>` : ''}

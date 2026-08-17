@@ -157,10 +157,10 @@ namespace ADAssessment.Infrastructure.Sysvol
             public int dwType;
             public int dwDisplayType;
             public int dwUsage;
-            public string? lpLocalName;
-            public string? lpRemoteName;
-            public string? lpComment;
-            public string? lpProvider;
+            [MarshalAs(UnmanagedType.LPWStr)] public string? lpLocalName;
+            [MarshalAs(UnmanagedType.LPWStr)] public string? lpRemoteName;
+            [MarshalAs(UnmanagedType.LPWStr)] public string? lpComment;
+            [MarshalAs(UnmanagedType.LPWStr)] public string? lpProvider;
         }
 
         [DllImport("mpr.dll", CharSet = CharSet.Unicode)]

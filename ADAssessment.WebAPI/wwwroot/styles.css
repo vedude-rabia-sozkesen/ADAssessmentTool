@@ -272,6 +272,7 @@ input:focus, select:focus, textarea:focus {
 .vuln-card.high-risk { border-left: 4px solid var(--danger); }
 .vuln-card.medium-risk { border-left: 4px solid var(--warning); }
 .vuln-card.low-risk { border-left: 4px solid var(--success); }
+.vuln-card.informational-risk { border-left: 4px solid var(--text-muted); }
 
 .vuln-header {
     display: flex;
@@ -288,6 +289,7 @@ input:focus, select:focus, textarea:focus {
 .badge-risk-high { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
 .badge-risk-medium { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
 .badge-risk-low { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+.badge-risk-informational { background: rgba(148, 163, 184, 0.2); color: var(--text-muted); }
 
 .affected-list {
     margin: 16px 0;
