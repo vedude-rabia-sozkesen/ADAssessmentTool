@@ -12,10 +12,4 @@
     <ProjectReference Include="..\ADAssessment.Infrastructure\ADAssessment.Infrastructure.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Update="rules\**\*">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
-
 </Project>

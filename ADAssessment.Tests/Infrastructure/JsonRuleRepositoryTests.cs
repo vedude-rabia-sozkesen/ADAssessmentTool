@@ -83,5 +83,54 @@ namespace ADAssessment.Tests.Infrastructure
 
             Assert.Empty(rules);
         }
+
+        [Fact]
+        public void RulesFolderPath_ExplicitPath_IsUsedAsIs()
+        {
+            var repository = new JsonRuleRepository(_tempFolder);
+
+            Assert.Equal(_tempFolder, repository.RulesFolderPath);
+        }
+
+        [Fact]
+        public void RulesFolderPath_NoExplicitPathAndNoEnvVar_ResolvesUnderProgramData()
+        {
+            // WebAPI ve ConsoleApp'ın (env var/açık yol verilmediğinde) aynı makine-geneli
+            // klasöre işaret etmesinin regresyon testi - bu oturumda AD-011/AD-012'nin
+            // WebAPI'de görünmemesine yol açan "her exe kendi bin klasörüne bakıyor" sorununu düzeltiyor.
+            string? original = Environment.GetEnvironmentVariable("AD_ASSESSMENT_RULES_PATH");
+            try
+            {
+                Environment.SetEnvironmentVariable("AD_ASSESSMENT_RULES_PATH", null);
+
+                var repository = new JsonRuleRepository();
+
+                string expectedRoot = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+                Assert.StartsWith(expectedRoot, repository.RulesFolderPath, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("ADAssessmentTool", repository.RulesFolderPath);
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("AD_ASSESSMENT_RULES_PATH", original);
+            }
+        }
+
+        [Fact]
+        public void RulesFolderPath_EnvVarSet_OverridesDefault()
+        {
+            string? original = Environment.GetEnvironmentVariable("AD_ASSESSMENT_RULES_PATH");
+            try
+            {
+                Environment.SetEnvironmentVariable("AD_ASSESSMENT_RULES_PATH", _tempFolder);
+
+                var repository = new JsonRuleRepository();
+
+                Assert.Equal(_tempFolder, repository.RulesFolderPath);
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("AD_ASSESSMENT_RULES_PATH", original);
+            }
+        }
     }
 }

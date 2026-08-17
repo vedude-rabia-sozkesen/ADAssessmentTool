@@ -158,11 +158,13 @@ namespace ADAssessment.WebAPI.Controllers
         /// <summary>
         /// RuleId'den rules/ klasörü altında güvenli bir dosya yolu üretir. Path traversal
         /// koruması: RuleIdValidator regex kontrolüne ek olarak, üretilen tam yolun gerçekten
-        /// rules/ klasörü altında kaldığı ayrıca doğrulanır (savunma derinliği).
+        /// rules/ klasörü altında kaldığı ayrıca doğrulanır (savunma derinliği). Klasör olarak
+        /// _jsonRepository ile AYNI değer kullanılır - kendi başına ayrı bir yol hesaplanmaz,
+        /// aksi halde WebAPI'nin okuduğu/yazdığı klasörler birbirinden sapabilir.
         /// </summary>
-        private static string ResolveRuleFilePath(string ruleId, out IActionResult? error)
+        private string ResolveRuleFilePath(string ruleId, out IActionResult? error)
         {
-            string rulesFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "rules");
+            string rulesFolder = _jsonRepository.RulesFolderPath;
             if (!Directory.Exists(rulesFolder)) Directory.CreateDirectory(rulesFolder);
 
             string filePath = Path.Combine(rulesFolder, $"{ruleId}.json");

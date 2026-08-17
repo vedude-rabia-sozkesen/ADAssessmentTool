@@ -14,9 +14,37 @@ namespace ADAssessment.Infrastructure.Configuration
     {
         private readonly string _rulesFolderPath;
 
+        /// <summary>
+        /// Bu depo örneğinin okuduğu/yazdığı gerçek klasör yolu. RulesController gibi
+        /// tüketicilerin kendi ayrı bir yol hesaplamak yerine bu değeri kullanması,
+        /// WebAPI ve ConsoleApp'ın (ve ileride eklenecek her tüketicinin) her zaman
+        /// aynı kural kümesini görmesini garanti eder.
+        /// </summary>
+        public string RulesFolderPath => _rulesFolderPath;
+
         public JsonRuleRepository(string? rulesFolderPath = null)
         {
-            _rulesFolderPath = rulesFolderPath ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "rules");
+            _rulesFolderPath = rulesFolderPath ?? ResolveDefaultRulesFolder();
+        }
+
+        /// <summary>
+        /// Varsayılan kural klasörünü belirler. Önceden her çalıştırılabilir dosya
+        /// (WebAPI/ConsoleApp) kendi "bin" klasöründeki ayrı bir rules/ alt klasörüne
+        /// bakıyordu - bu, aynı No-Code kuralının bir arayüzde görünüp diğerinde
+        /// görünmemesine yol açıyordu. Artık ikisi de, hangi klasörden çalıştırılırsa
+        /// çalıştırılsın aynı yere işaret eden makine-geneli bir konumu (%ProgramData%)
+        /// kullanıyor. AD_ASSESSMENT_RULES_PATH env var'ı ile açıkça geçersiz kılınabilir.
+        /// </summary>
+        private static string ResolveDefaultRulesFolder()
+        {
+            string? envOverride = Environment.GetEnvironmentVariable("AD_ASSESSMENT_RULES_PATH");
+            if (!string.IsNullOrWhiteSpace(envOverride))
+            {
+                return envOverride;
+            }
+
+            string programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+            return Path.Combine(programData, "ADAssessmentTool", "rules");
         }
 
         public IReadOnlyList<IComplianceRule> LoadRules()
