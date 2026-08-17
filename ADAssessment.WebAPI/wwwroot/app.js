@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const loginError = document.getElementById('loginError');
     const logoutBtn = document.getElementById('logoutBtn');
     const runScanBtn = document.getElementById('runScanBtn');
+    const downloadReportBtn = document.getElementById('downloadReportBtn');
     const loadingSpinner = document.getElementById('loadingSpinner');
     const reportsList = document.getElementById('reportsList');
     const activeRulesList = document.getElementById('activeRulesList');
@@ -123,6 +124,40 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             loadingSpinner.classList.add('hidden');
             reportsList.innerHTML = `<div class="alert alert-danger">Bağlantı Hatası: ${err.message}</div>`;
+        }
+    });
+
+    // 3b. YÖNETİCİ RAPORU İNDİR (GET /api/assessment/report) - yeni bir tarama çalıştırıp
+    // kendinden yeterli (self-contained) bir HTML raporu yeni sekmede açar. Kullanıcı bu
+    // sekmeden tarayıcının "Yazdır > PDF olarak kaydet" özelliğiyle PDF üretebilir - ayrı
+    // bir PDF kütüphanesi/indirme uç noktası gerekmez.
+    downloadReportBtn.addEventListener('click', async () => {
+        loadingSpinner.classList.remove('hidden');
+
+        try {
+            const res = await fetch(`${API_BASE}/assessment/report`, {
+                headers: { 'Authorization': `Bearer ${jwtToken}` }
+            });
+
+            loadingSpinner.classList.add('hidden');
+
+            if (res.status === 401) {
+                handleUnauthorized();
+                return;
+            }
+
+            if (!res.ok) {
+                reportsList.innerHTML = '<div class="alert alert-danger">Rapor oluşturulamadı.</div>';
+                return;
+            }
+
+            const html = await res.text();
+            const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+            const blobUrl = URL.createObjectURL(blob);
+            window.open(blobUrl, '_blank');
+        } catch (err) {
+            loadingSpinner.classList.add('hidden');
+            reportsList.innerHTML = `<div class="alert alert-danger">Rapor oluşturulurken bağlantı hatası: ${err.message}</div>`;
         }
     });
 

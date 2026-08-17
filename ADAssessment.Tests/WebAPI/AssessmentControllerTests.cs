@@ -148,5 +148,49 @@ namespace ADAssessment.Tests.WebAPI
             Assert.NotEmpty(ruleResult.FrameworkMapping);
             Assert.Contains("ISO/IEC 27001", ruleResult.Iso27001Mapping);
         }
+
+        [Fact]
+        public void GetExecutiveReport_Success_ReturnsSelfContainedHtml()
+        {
+            var users = new List<AdUserAccount>
+            {
+                new AdUserAccount { SamAccountName = "nopass", UserAccountControl = 0x0200 | 0x0020 }
+            };
+            var extractor = FakeLdapDataExtractor.Returning(users);
+            var auditLogger = new FakeAuditLogger();
+            var controller = MakeController(
+                extractor,
+                auditLogger,
+                rules: new IComplianceRule[] { new PasswordNotRequiredRule() });
+
+            var result = controller.GetExecutiveReport();
+
+            var contentResult = Assert.IsType<ContentResult>(result);
+            Assert.Equal("text/html", contentResult.ContentType?.Split(';')[0]);
+            // charset açıkça belirtilmezse istemciler Türkçe karakterleri (ğ, ş, ü vb.)
+            // yanlış decode edebilir - bu, canlı testte gerçekten yaşanmış bir regresyon.
+            Assert.Contains("utf-8", contentResult.ContentType, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("<html", contentResult.Content);
+            Assert.Contains("AD-004", contentResult.Content);
+            // Zero-trust: rapor hiçbir dış kaynağa (CDN, font, script) bağlı olmamalı.
+            Assert.DoesNotContain("http://", contentResult.Content);
+            Assert.DoesNotContain("https://", contentResult.Content);
+        }
+
+        [Fact]
+        public void GetExecutiveReport_LdapThrows_ReturnsGenericErrorWithoutLeakingDetails()
+        {
+            const string sensitiveDetail = "System.DirectoryServices.DirectoryEntry.Bind failed against DC=internal,DC=corp,DC=example";
+            var extractor = FakeLdapDataExtractor.ThrowingOnConnect(new InvalidOperationException(sensitiveDetail));
+            var auditLogger = new FakeAuditLogger();
+            var controller = MakeController(extractor, auditLogger);
+
+            var result = controller.GetExecutiveReport();
+
+            var objectResult = Assert.IsType<ObjectResult>(result);
+            Assert.Equal(500, objectResult.StatusCode);
+            string json = System.Text.Json.JsonSerializer.Serialize(objectResult.Value);
+            Assert.DoesNotContain(sensitiveDetail, json);
+        }
     }
 }
