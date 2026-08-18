@@ -22,9 +22,11 @@ namespace ADAssessment.WebAPI.Controllers
     {
         private readonly ILdapDataExtractor _extractor;
         private readonly ISysvolDataExtractor _sysvolExtractor;
+        private readonly ILdapProtocolSecurityChecker _ldapProtocolChecker;
         private readonly IEnumerable<IComplianceRule> _staticRules;
         private readonly IEnumerable<IGroupPolicyComplianceRule> _groupPolicyRules;
         private readonly IEnumerable<IComputerComplianceRule> _computerRules;
+        private readonly IEnumerable<ILdapProtocolComplianceRule> _ldapProtocolRules;
         private readonly JsonRuleRepository _jsonRepository;
         private readonly IAuditLogger _auditLogger;
         private readonly ILogger<AssessmentController> _logger;
@@ -32,18 +34,22 @@ namespace ADAssessment.WebAPI.Controllers
         public AssessmentController(
             ILdapDataExtractor extractor,
             ISysvolDataExtractor sysvolExtractor,
+            ILdapProtocolSecurityChecker ldapProtocolChecker,
             IEnumerable<IComplianceRule> staticRules,
             IEnumerable<IGroupPolicyComplianceRule> groupPolicyRules,
             IEnumerable<IComputerComplianceRule> computerRules,
+            IEnumerable<ILdapProtocolComplianceRule> ldapProtocolRules,
             JsonRuleRepository jsonRepository,
             IAuditLogger auditLogger,
             ILogger<AssessmentController> logger)
         {
             _extractor = extractor;
             _sysvolExtractor = sysvolExtractor;
+            _ldapProtocolChecker = ldapProtocolChecker;
             _staticRules = staticRules;
             _groupPolicyRules = groupPolicyRules;
             _computerRules = computerRules;
+            _ldapProtocolRules = ldapProtocolRules;
             _jsonRepository = jsonRepository;
             _auditLogger = auditLogger;
             _logger = logger;
@@ -121,6 +127,18 @@ namespace ADAssessment.WebAPI.Controllers
                 _logger.LogWarning(computerEx, "Bilgisayar nesnesi verisi okunamadı, bilgisayar tabanlı kurallar bu taramada atlandı.");
             }
 
+            // LDAP protokol güvenliği kontrolü de gerçek bir ağ bağlantısı denemesi
+            // içerdiğinden (bkz. LdapProtocolSecurityChecker), aynı sebeple izole edilir.
+            LdapProtocolSecuritySettings? ldapProtocolSecurity = null;
+            try
+            {
+                ldapProtocolSecurity = _ldapProtocolChecker.CheckSigningEnforcement();
+            }
+            catch (Exception ldapProtocolEx)
+            {
+                _logger.LogWarning(ldapProtocolEx, "LDAP protokol güvenliği kontrol edilemedi, ilgili kurallar bu taramada atlandı.");
+            }
+
             var rules = new List<IComplianceRule>(_staticRules);
             var dynamicRules = _jsonRepository.LoadRules();
             rules.AddRange(dynamicRules);
@@ -142,7 +160,12 @@ namespace ADAssessment.WebAPI.Controllers
                 results.Add(rule.Execute(computers!));
             }
 
-            int totalRulesExecuted = rules.Count + _groupPolicyRules.Count() + _computerRules.Count();
+            foreach (var rule in _ldapProtocolRules)
+            {
+                results.Add(rule.Execute(ldapProtocolSecurity!));
+            }
+
+            int totalRulesExecuted = rules.Count + _groupPolicyRules.Count() + _computerRules.Count() + _ldapProtocolRules.Count();
 
             string initiator = User.Identity?.Name ?? "WebAPI_User";
             _auditLogger.LogAssessment(initiator, users.Count, results);
@@ -159,6 +182,7 @@ namespace ADAssessment.WebAPI.Controllers
             var ruleMetadataById = rules
                 .Concat(_groupPolicyRules)
                 .Concat(_computerRules)
+                .Concat(_ldapProtocolRules)
                 .GroupBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 

@@ -35,14 +35,18 @@ namespace ADAssessment.Tests.WebAPI
             IEnumerable<IComplianceRule>? rules = null,
             FakeSysvolDataExtractor? sysvolExtractor = null,
             IEnumerable<IGroupPolicyComplianceRule>? groupPolicyRules = null,
-            IEnumerable<IComputerComplianceRule>? computerRules = null)
+            IEnumerable<IComputerComplianceRule>? computerRules = null,
+            FakeLdapProtocolSecurityChecker? ldapProtocolChecker = null,
+            IEnumerable<ILdapProtocolComplianceRule>? ldapProtocolRules = null)
         {
             var controller = new AssessmentController(
                 extractor,
                 sysvolExtractor ?? FakeSysvolDataExtractor.Returning(Array.Empty<GroupPolicySecuritySettings>()),
+                ldapProtocolChecker ?? FakeLdapProtocolSecurityChecker.Returning(new LdapProtocolSecuritySettings()),
                 rules ?? Array.Empty<IComplianceRule>(),
                 groupPolicyRules ?? Array.Empty<IGroupPolicyComplianceRule>(),
                 computerRules ?? Array.Empty<IComputerComplianceRule>(),
+                ldapProtocolRules ?? Array.Empty<ILdapProtocolComplianceRule>(),
                 new JsonRuleRepository(_emptyRulesFolder),
                 auditLogger,
                 NullLogger<AssessmentController>.Instance);
@@ -173,6 +177,29 @@ namespace ADAssessment.Tests.WebAPI
             Assert.Equal(0, response.ScannedComputerCount);
             var computerRuleResult = Assert.Single(response.Results, r => r.RuleId == "AD-016");
             Assert.Equal("Informational", computerRuleResult.RiskLevel);
+        }
+
+        [Fact]
+        public void RunScan_LdapProtocolCheckThrows_UserScanStillSucceeds()
+        {
+            // LDAP protokol güvenliği kontrolündeki bir hatanın (ör. DC'ye 389 portundan
+            // erişilemiyor) tüm taramayı düşürmemesi gerektiğinin regresyon testi -
+            // aynı izolasyon deseni (SYSVOL/computer).
+            var users = new List<AdUserAccount> { new AdUserAccount { SamAccountName = "jdoe", UserAccountControl = 0x0200 } };
+            var extractor = FakeLdapDataExtractor.Returning(users);
+            var auditLogger = new FakeAuditLogger();
+            var controller = MakeController(
+                extractor,
+                auditLogger,
+                ldapProtocolChecker: FakeLdapProtocolSecurityChecker.ThrowingOnAccess(new InvalidOperationException("ldap protocol check failed (test)")),
+                ldapProtocolRules: new ILdapProtocolComplianceRule[] { new LdapSigningNotEnforcedRule() });
+
+            var result = controller.RunScan();
+
+            var okResult = Assert.IsType<OkObjectResult>(result);
+            var response = Assert.IsType<ScanResultResponse>(okResult.Value);
+            var ldapRuleResult = Assert.Single(response.Results, r => r.RuleId == "AD-019");
+            Assert.Equal("Informational", ldapRuleResult.RiskLevel);
         }
 
         [Fact]

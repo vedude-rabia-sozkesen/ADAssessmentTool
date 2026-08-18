@@ -79,6 +79,15 @@ builder.Services.AddScoped<ISysvolDataExtractor>(sp =>
     return new SysvolDataExtractor(options);
 });
 
+// LDAP Protokol Güvenliği Denetleyicisi (LDAP signing zorunluluğu vb.) - yine aynı
+// bağlantı bilgilerini yeniden kullanır.
+builder.Services.AddScoped<ILdapProtocolSecurityChecker>(sp =>
+{
+    var secretResolver = sp.GetRequiredService<ISecretResolver>();
+    var options = secretResolver.ResolveLdapOptions();
+    return new LdapProtocolSecurityChecker(options);
+});
+
 // Tüm Sabit C# Uyum Kurallarını DI'a Kaydet
 builder.Services.AddTransient<IComplianceRule, KerberoastingRule>();
 builder.Services.AddTransient<IComplianceRule, AsRepRoastingRule>();
@@ -100,6 +109,9 @@ builder.Services.AddTransient<IGroupPolicyComplianceRule, WeakLockoutPolicyRule>
 builder.Services.AddTransient<IComputerComplianceRule, StaleComputerAccountsRule>();
 builder.Services.AddTransient<IComputerComplianceRule, ObsoleteOperatingSystemRule>();
 builder.Services.AddTransient<IComputerComplianceRule, StaleComputerPasswordRule>();
+
+// LDAP Protokol Güvenliği Tabanlı Uyum Kurallarını DI'a Kaydet
+builder.Services.AddTransient<ILdapProtocolComplianceRule, LdapSigningNotEnforcedRule>();
 
 // 4. CORS Politikası — sadece appsettings.json > AllowedOrigins içinde açıkça
 // listelenen origin'lere izin verilir. Frontend zaten aynı origin'den (wwwroot)

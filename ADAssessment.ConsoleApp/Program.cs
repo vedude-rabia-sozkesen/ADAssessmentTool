@@ -71,6 +71,21 @@ namespace ADAssessment.ConsoleApp
                     Console.WriteLine($"[-] [BİLGİSAYAR UYARISI] Bilgisayar nesnesi verisi okunamadı ({computerEx.Message}). Bilgisayar tabanlı kurallar bu taramada atlanacak.\n");
                 }
 
+                // LDAP Protokol Güvenliği Kontrolü - gerçek bir bağlantı denemesi içerdiğinden
+                // (LDAP signing zorunlu mu), aynı sebeple izole edilir.
+                LdapProtocolSecuritySettings? ldapProtocolSecurity = null;
+                try
+                {
+                    Console.WriteLine("[*] DC'nin LDAP protokol güvenliği (signing) kontrol ediliyor...");
+                    var ldapProtocolChecker = new LdapProtocolSecurityChecker(options);
+                    ldapProtocolSecurity = ldapProtocolChecker.CheckSigningEnforcement();
+                    Console.WriteLine("[+] LDAP protokol güvenliği kontrolü tamamlandı.\n");
+                }
+                catch (Exception ldapProtocolEx)
+                {
+                    Console.WriteLine($"[-] [LDAP PROTOKOL UYARISI] LDAP protokol güvenliği kontrol edilemedi ({ldapProtocolEx.Message}). İlgili kurallar bu taramada atlanacak.\n");
+                }
+
                 // 2. Kuralların Tanımlanması ve Çalıştırılması
                 Console.WriteLine("[*] Güvenlik analizleri başlatılıyor...\n");
 
@@ -105,6 +120,11 @@ namespace ADAssessment.ConsoleApp
                     new StaleComputerAccountsRule(),      // AD-016
                     new ObsoleteOperatingSystemRule(),    // AD-017
                     new StaleComputerPasswordRule()        // AD-018
+                };
+
+                var ldapProtocolRules = new List<ILdapProtocolComplianceRule>
+                {
+                    new LdapSigningNotEnforcedRule()      // AD-019
                 };
 
                 var results = new List<RuleResult>();
@@ -146,6 +166,7 @@ namespace ADAssessment.ConsoleApp
                 rules = rules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
                 groupPolicyRules = groupPolicyRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
                 computerRules = computerRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
+                ldapProtocolRules = ldapProtocolRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
 
                 foreach (var rule in rules)
                 {
@@ -160,6 +181,11 @@ namespace ADAssessment.ConsoleApp
                 foreach (var rule in computerRules)
                 {
                     PrintAndCollect(rule, rule.Execute(computers!));
+                }
+
+                foreach (var rule in ldapProtocolRules)
+                {
+                    PrintAndCollect(rule, rule.Execute(ldapProtocolSecurity!));
                 }
 
                 // 3. Denetim İzleme (Audit Logging) Kaydı

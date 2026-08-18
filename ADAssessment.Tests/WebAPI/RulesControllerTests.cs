@@ -36,7 +36,8 @@ namespace ADAssessment.Tests.WebAPI
                 new JsonRuleRepository(rulesFolder),
                 staticRules ?? Array.Empty<IComplianceRule>(),
                 Array.Empty<IGroupPolicyComplianceRule>(),
-                Array.Empty<IComputerComplianceRule>());
+                Array.Empty<IComputerComplianceRule>(),
+                Array.Empty<ILdapProtocolComplianceRule>());
         }
 
         private static JsonRuleDefinition SimpleDefinition(string ruleId) => new JsonRuleDefinition
