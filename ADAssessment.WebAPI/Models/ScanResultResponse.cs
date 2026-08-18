@@ -16,6 +16,7 @@ namespace ADAssessment.WebAPI.Models
     {
         public string Status { get; set; } = string.Empty;
         public int ScannedUserCount { get; set; }
+        public int ScannedComputerCount { get; set; }
         public int TotalRulesExecuted { get; set; }
         public int VulnerableRulesCount { get; set; }
 

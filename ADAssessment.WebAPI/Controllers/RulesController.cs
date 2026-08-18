@@ -27,13 +27,14 @@ namespace ADAssessment.WebAPI.Controllers
         public RulesController(
             JsonRuleRepository jsonRepository,
             IEnumerable<IComplianceRule> staticRules,
-            IEnumerable<IGroupPolicyComplianceRule> groupPolicyRules)
+            IEnumerable<IGroupPolicyComplianceRule> groupPolicyRules,
+            IEnumerable<IComputerComplianceRule> computerRules)
         {
             _jsonRepository = jsonRepository;
-            // GPO tabanlı kurallar da derlenmiş kod olduğundan (Source="Static") aynı
-            // listeye dahil edilir - IGroupPolicyComplianceRule zaten IComplianceRule
-            // olduğundan cast'e gerek kalmaz.
-            _staticRules = staticRules.Concat(groupPolicyRules).ToList();
+            // GPO ve bilgisayar tabanlı kurallar da derlenmiş kod olduğundan (Source="Static")
+            // aynı listeye dahil edilir - IGroupPolicyComplianceRule/IComputerComplianceRule
+            // zaten IComplianceRule olduğundan cast'e gerek kalmaz.
+            _staticRules = staticRules.Concat(groupPolicyRules).Concat(computerRules).ToList();
         }
 
         [HttpGet]

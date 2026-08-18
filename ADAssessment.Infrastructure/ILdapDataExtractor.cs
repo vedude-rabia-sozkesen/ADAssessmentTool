@@ -11,5 +11,7 @@ namespace ADAssessment.Infrastructure.Ldap
     public interface ILdapDataExtractor
     {
         IReadOnlyList<AdUserAccount> GetActiveUsers();
+
+        IReadOnlyList<AdComputerAccount> GetComputerAccounts();
     }
 }

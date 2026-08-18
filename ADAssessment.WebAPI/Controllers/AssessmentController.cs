@@ -24,6 +24,7 @@ namespace ADAssessment.WebAPI.Controllers
         private readonly ISysvolDataExtractor _sysvolExtractor;
         private readonly IEnumerable<IComplianceRule> _staticRules;
         private readonly IEnumerable<IGroupPolicyComplianceRule> _groupPolicyRules;
+        private readonly IEnumerable<IComputerComplianceRule> _computerRules;
         private readonly JsonRuleRepository _jsonRepository;
         private readonly IAuditLogger _auditLogger;
         private readonly ILogger<AssessmentController> _logger;
@@ -33,6 +34,7 @@ namespace ADAssessment.WebAPI.Controllers
             ISysvolDataExtractor sysvolExtractor,
             IEnumerable<IComplianceRule> staticRules,
             IEnumerable<IGroupPolicyComplianceRule> groupPolicyRules,
+            IEnumerable<IComputerComplianceRule> computerRules,
             JsonRuleRepository jsonRepository,
             IAuditLogger auditLogger,
             ILogger<AssessmentController> logger)
@@ -41,6 +43,7 @@ namespace ADAssessment.WebAPI.Controllers
             _sysvolExtractor = sysvolExtractor;
             _staticRules = staticRules;
             _groupPolicyRules = groupPolicyRules;
+            _computerRules = computerRules;
             _jsonRepository = jsonRepository;
             _auditLogger = auditLogger;
             _logger = logger;
@@ -106,6 +109,18 @@ namespace ADAssessment.WebAPI.Controllers
                 _logger.LogWarning(sysvolEx, "SYSVOL/GPO verisi okunamadı, GPO tabanlı kurallar bu taramada atlandı.");
             }
 
+            // Bilgisayar nesnesi sorgusu da aynı sebeple (LDAP tabanlı kullanıcı taramasından
+            // bağımsız bir hata kaynağı oluşturmasın diye) izole edilir.
+            IReadOnlyList<AdComputerAccount>? computers = null;
+            try
+            {
+                computers = _extractor.GetComputerAccounts();
+            }
+            catch (Exception computerEx)
+            {
+                _logger.LogWarning(computerEx, "Bilgisayar nesnesi verisi okunamadı, bilgisayar tabanlı kurallar bu taramada atlandı.");
+            }
+
             var rules = new List<IComplianceRule>(_staticRules);
             var dynamicRules = _jsonRepository.LoadRules();
             rules.AddRange(dynamicRules);
@@ -122,15 +137,20 @@ namespace ADAssessment.WebAPI.Controllers
                 results.Add(rule.Execute(groupPolicies!));
             }
 
-            int totalRulesExecuted = rules.Count + _groupPolicyRules.Count();
+            foreach (var rule in _computerRules)
+            {
+                results.Add(rule.Execute(computers!));
+            }
+
+            int totalRulesExecuted = rules.Count + _groupPolicyRules.Count() + _computerRules.Count();
 
             string initiator = User.Identity?.Name ?? "WebAPI_User";
             _auditLogger.LogAssessment(initiator, users.Count, results);
 
-            // Kurallar farklı kaynaklardan (statik, JSON, GPO) farklı sırayla geldiğinden
-            // (JSON dosyaları için dosya sistemi sıralaması garanti değildir), sonuçlar
-            // client'a dönmeden önce RuleId'ye göre sıralanır - "AD-001..AD-015" gibi sabit
-            // uzunluklu numaralandırma için düz string sıralaması sayısal sırayla eşleşir.
+            // Kurallar farklı kaynaklardan (statik, JSON, GPO, bilgisayar) farklı sırayla
+            // geldiğinden (JSON dosyaları için dosya sistemi sıralaması garanti değildir),
+            // sonuçlar client'a dönmeden önce RuleId'ye göre sıralanır - "AD-001..AD-018" gibi
+            // sabit uzunluklu numaralandırma için düz string sıralaması sayısal sırayla eşleşir.
             var orderedResults = results.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
 
             // Otomatik Compliance Mapping: her bulgunun (finding) hangi çerçeve
@@ -138,6 +158,7 @@ namespace ADAssessment.WebAPI.Controllers
             // bakmasına gerek kalmadan doğrudan sonuçta görünsün diye burada eklenir.
             var ruleMetadataById = rules
                 .Concat(_groupPolicyRules)
+                .Concat(_computerRules)
                 .GroupBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
@@ -150,6 +171,7 @@ namespace ADAssessment.WebAPI.Controllers
             {
                 Status = "Success",
                 ScannedUserCount = users.Count,
+                ScannedComputerCount = computers?.Count ?? 0,
                 TotalRulesExecuted = totalRulesExecuted,
                 VulnerableRulesCount = results.Count(r => r.IsVulnerable),
                 Results = orderedResults.Select(r =>

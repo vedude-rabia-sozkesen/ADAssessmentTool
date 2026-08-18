@@ -96,6 +96,11 @@ builder.Services.AddTransient<IGroupPolicyComplianceRule, WeakPasswordPolicyRule
 builder.Services.AddTransient<IGroupPolicyComplianceRule, ReversiblePasswordEncryptionPolicyRule>();
 builder.Services.AddTransient<IGroupPolicyComplianceRule, WeakLockoutPolicyRule>();
 
+// Bilgisayar (Computer) Nesnesi Tabanlı Uyum Kurallarını DI'a Kaydet
+builder.Services.AddTransient<IComputerComplianceRule, StaleComputerAccountsRule>();
+builder.Services.AddTransient<IComputerComplianceRule, ObsoleteOperatingSystemRule>();
+builder.Services.AddTransient<IComputerComplianceRule, StaleComputerPasswordRule>();
+
 // 4. CORS Politikası — sadece appsettings.json > AllowedOrigins içinde açıkça
 // listelenen origin'lere izin verilir. Frontend zaten aynı origin'den (wwwroot)
 // serve edildiğinden varsayılan (boş liste) durumda CORS'a gerek yoktur.

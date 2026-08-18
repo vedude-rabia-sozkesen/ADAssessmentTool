@@ -28,6 +28,9 @@ namespace ADAssessment.Tests.Core
             new WeakPasswordPolicyRule(),
             new ReversiblePasswordEncryptionPolicyRule(),
             new WeakLockoutPolicyRule(),
+            new StaleComputerAccountsRule(),
+            new ObsoleteOperatingSystemRule(),
+            new StaleComputerPasswordRule(),
         };
 
         [Theory]

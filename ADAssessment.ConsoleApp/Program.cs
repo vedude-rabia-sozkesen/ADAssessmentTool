@@ -57,6 +57,20 @@ namespace ADAssessment.ConsoleApp
                     Console.WriteLine($"[-] [SYSVOL UYARISI] Group Policy verisi okunamadı ({sysvolEx.Message}). GPO tabanlı kurallar bu taramada atlanacak.\n");
                 }
 
+                // Bilgisayar (Computer) Nesnesi Verisinin Çekilmesi - kullanıcı taramasından
+                // bağımsız bir hata kaynağı, erişilemezse bilgisayar tabanlı kurallar atlanır.
+                IReadOnlyList<AdComputerAccount>? computers = null;
+                try
+                {
+                    Console.WriteLine("[*] Bilgisayar nesneleri sayfalı (paged) olarak çekiliyor...");
+                    computers = extractor.GetComputerAccounts();
+                    Console.WriteLine($"[+] Başarıyla {computers.Count} adet bilgisayar hesabı analiz için çekildi.\n");
+                }
+                catch (Exception computerEx)
+                {
+                    Console.WriteLine($"[-] [BİLGİSAYAR UYARISI] Bilgisayar nesnesi verisi okunamadı ({computerEx.Message}). Bilgisayar tabanlı kurallar bu taramada atlanacak.\n");
+                }
+
                 // 2. Kuralların Tanımlanması ve Çalıştırılması
                 Console.WriteLine("[*] Güvenlik analizleri başlatılıyor...\n");
 
@@ -84,6 +98,13 @@ namespace ADAssessment.ConsoleApp
                     new WeakPasswordPolicyRule(),                    // AD-013
                     new ReversiblePasswordEncryptionPolicyRule(),    // AD-014
                     new WeakLockoutPolicyRule()                      // AD-015
+                };
+
+                var computerRules = new List<IComputerComplianceRule>
+                {
+                    new StaleComputerAccountsRule(),      // AD-016
+                    new ObsoleteOperatingSystemRule(),    // AD-017
+                    new StaleComputerPasswordRule()        // AD-018
                 };
 
                 var results = new List<RuleResult>();
@@ -124,6 +145,7 @@ namespace ADAssessment.ConsoleApp
                 // yazdırma sırası da RuleId'ye göre sıralanır.
                 rules = rules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
                 groupPolicyRules = groupPolicyRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
+                computerRules = computerRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
 
                 foreach (var rule in rules)
                 {
@@ -133,6 +155,11 @@ namespace ADAssessment.ConsoleApp
                 foreach (var rule in groupPolicyRules)
                 {
                     PrintAndCollect(rule, rule.Execute(groupPolicies!));
+                }
+
+                foreach (var rule in computerRules)
+                {
+                    PrintAndCollect(rule, rule.Execute(computers!));
                 }
 
                 // 3. Denetim İzleme (Audit Logging) Kaydı

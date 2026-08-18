@@ -34,13 +34,15 @@ namespace ADAssessment.Tests.WebAPI
             FakeAuditLogger auditLogger,
             IEnumerable<IComplianceRule>? rules = null,
             FakeSysvolDataExtractor? sysvolExtractor = null,
-            IEnumerable<IGroupPolicyComplianceRule>? groupPolicyRules = null)
+            IEnumerable<IGroupPolicyComplianceRule>? groupPolicyRules = null,
+            IEnumerable<IComputerComplianceRule>? computerRules = null)
         {
             var controller = new AssessmentController(
                 extractor,
                 sysvolExtractor ?? FakeSysvolDataExtractor.Returning(Array.Empty<GroupPolicySecuritySettings>()),
                 rules ?? Array.Empty<IComplianceRule>(),
                 groupPolicyRules ?? Array.Empty<IGroupPolicyComplianceRule>(),
+                computerRules ?? Array.Empty<IComputerComplianceRule>(),
                 new JsonRuleRepository(_emptyRulesFolder),
                 auditLogger,
                 NullLogger<AssessmentController>.Instance);
@@ -147,6 +149,30 @@ namespace ADAssessment.Tests.WebAPI
             Assert.Equal("AD-004", ruleResult.RuleId);
             Assert.NotEmpty(ruleResult.FrameworkMapping);
             Assert.Contains("ISO/IEC 27001", ruleResult.Iso27001Mapping);
+        }
+
+        [Fact]
+        public void RunScan_ComputerQueryThrows_UserScanStillSucceeds()
+        {
+            // Bilgisayar nesnesi sorgusundaki bir hatanın (ör. yetersiz izin, timeout)
+            // tüm taramayı düşürmemesi gerektiğinin regresyon testi - SYSVOL izolasyonuyla
+            // aynı desen (RunScan_SysvolThrows_LdapScanStillSucceeds).
+            var users = new List<AdUserAccount> { new AdUserAccount { SamAccountName = "jdoe", UserAccountControl = 0x0200 } };
+            var extractor = FakeLdapDataExtractor.ThrowingOnComputerQuery(users, new InvalidOperationException("computer query failed (test)"));
+            var auditLogger = new FakeAuditLogger();
+            var controller = MakeController(
+                extractor,
+                auditLogger,
+                computerRules: new IComputerComplianceRule[] { new StaleComputerAccountsRule() });
+
+            var result = controller.RunScan();
+
+            var okResult = Assert.IsType<OkObjectResult>(result);
+            var response = Assert.IsType<ScanResultResponse>(okResult.Value);
+            Assert.Equal(1, response.ScannedUserCount);
+            Assert.Equal(0, response.ScannedComputerCount);
+            var computerRuleResult = Assert.Single(response.Results, r => r.RuleId == "AD-016");
+            Assert.Equal("Informational", computerRuleResult.RiskLevel);
         }
 
         [Fact]

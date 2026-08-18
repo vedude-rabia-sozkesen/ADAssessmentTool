@@ -51,7 +51,7 @@ namespace ADAssessment.WebAPI.Reporting
             sb.Append("<div class=\"page\">");
             sb.Append("<header>");
             sb.Append("<h1>Active Directory Güvenlik Değerlendirme Raporu</h1>");
-            sb.Append($"<p class=\"meta\">Oluşturulma: {Html(generatedAtUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm"))} &middot; Taranan hesap sayısı: {scan.ScannedUserCount} &middot; Çalıştırılan kural sayısı: {scan.TotalRulesExecuted}</p>");
+            sb.Append($"<p class=\"meta\">Oluşturulma: {Html(generatedAtUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm"))} &middot; Taranan kullanıcı sayısı: {scan.ScannedUserCount} &middot; Taranan bilgisayar sayısı: {scan.ScannedComputerCount} &middot; Çalıştırılan kural sayısı: {scan.TotalRulesExecuted}</p>");
             sb.Append("</header>");
 
             sb.Append("<section class=\"score-card\">");

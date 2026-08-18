@@ -23,6 +23,9 @@ namespace ADAssessment.Infrastructure.Ldap
         private const string EveryoneSid = "S-1-1-0";
         private const string SelfSid = "S-1-5-10";
 
+        private const string UserFilter = "(&(objectCategory=person)(objectClass=user))";
+        private const string ComputerFilter = "(objectCategory=computer)";
+
         private static readonly string[] UserProperties =
         {
             "sAMAccountName",
@@ -35,6 +38,16 @@ namespace ADAssessment.Infrastructure.Ldap
             "memberOf",
             "servicePrincipalName",
             "nTSecurityDescriptor"
+        };
+
+        private static readonly string[] ComputerProperties =
+        {
+            "sAMAccountName",
+            "distinguishedName",
+            "operatingSystem",
+            "userAccountControl",
+            "pwdLastSet",
+            "lastLogonTimestamp"
         };
 
         private readonly LdapConnectionOptions _options;
@@ -75,6 +88,30 @@ namespace ADAssessment.Infrastructure.Ldap
         /// </summary>
         public IReadOnlyList<AdUserAccount> GetActiveUsers()
         {
+            return ExecuteWithLdapsFallback(
+                (path, useLdaps) => Query(path, useLdaps, UserFilter, UserProperties, MapToUserAccount, includeDacl: true));
+        }
+
+        /// <summary>
+        /// AD üzerindeki bilgisayar (computer) nesnelerini çeker ve Core katmanındaki modele
+        /// haritalar. Kullanıcı sorgusuyla aynı bağlantı/Zero Trust/fallback mantığını
+        /// (ExecuteWithLdapsFallback) paylaşır - sadece filtre, öznitelik listesi ve
+        /// haritalama fonksiyonu farklıdır.
+        /// </summary>
+        public IReadOnlyList<AdComputerAccount> GetComputerAccounts()
+        {
+            return ExecuteWithLdapsFallback(
+                (path, useLdaps) => Query(path, useLdaps, ComputerFilter, ComputerProperties, MapToComputerAccount, includeDacl: false));
+        }
+
+        /// <summary>
+        /// Zero Trust LDAPS denetimini ve (lab/test ortamları için) şifresiz LDAP'a düşüş
+        /// mantığını, sorgulanan nesne tipinden (kullanıcı/bilgisayar) bağımsız olarak tek
+        /// bir yerde uygular - iki ayrı sorgu yolunun bu güvenlik mantığında birbirinden
+        /// sapmasını (biri düzeltilip diğerinin unutulmasını) engeller.
+        /// </summary>
+        private IReadOnlyList<T> ExecuteWithLdapsFallback<T>(Func<string, bool, IReadOnlyList<T>> queryFunc)
+        {
             string formattedPath = _options.GetFormattedLdapPath();
 
             // Zero Trust Güvenlik Denetimi:
@@ -88,7 +125,7 @@ namespace ADAssessment.Infrastructure.Ldap
 
             try
             {
-                return QueryDirectory(formattedPath, _options.UseLdaps || formattedPath.Contains(":636"));
+                return queryFunc(formattedPath, _options.UseLdaps || formattedPath.Contains(":636"));
             }
             catch (Exception ex) when (_options.AllowUnsecureFallback && (_options.UseLdaps || formattedPath.Contains(":636")))
             {
@@ -101,13 +138,13 @@ namespace ADAssessment.Infrastructure.Ldap
                 }
                 fallbackPath = fallbackPath.Replace(":636", "");
 
-                return QueryDirectory(fallbackPath, useLdaps: false);
+                return queryFunc(fallbackPath, false);
             }
         }
 
-        private IReadOnlyList<AdUserAccount> QueryDirectory(string path, bool useLdaps)
+        private IReadOnlyList<T> Query<T>(string path, bool useLdaps, string filter, string[] properties, Func<SearchResult, T> mapper, bool includeDacl)
         {
-            var results = new List<AdUserAccount>();
+            var results = new List<T>();
             var authType = AuthenticationTypes.Secure;
             if (useLdaps)
             {
@@ -124,20 +161,25 @@ namespace ADAssessment.Infrastructure.Ldap
 
             using var searcher = new DirectorySearcher(rootEntry)
             {
-                Filter = "(&(objectCategory=person)(objectClass=user))",
+                Filter = filter,
                 PageSize = _options.PageSize > 0 ? _options.PageSize : DefaultPageSize,
                 SearchScope = SearchScope.Subtree,
                 CacheResults = false,
                 // Referral takibi kapalı: bir saldırgan/rogue DC'nin referral yanıtıyla sorguyu
                 // kendi kontrolündeki bir sunucuya yönlendirmesi (referral injection) riskini
                 // ortadan kaldırır. Araç tek domain'i taradığından referral'a ihtiyaç yoktur.
-                ReferralChasing = ReferralChasingOption.None,
-                // "Cannot change password" ayarını ACL üzerinden tespit edebilmek için DACL'i
-                // de aynı paged search içinde (ekstra bağlantı gerektirmeden) çekiyoruz.
-                SecurityMasks = SecurityMasks.Dacl
+                ReferralChasing = ReferralChasingOption.None
             };
 
-            foreach (var propertyName in UserProperties)
+            if (includeDacl)
+            {
+                // "Cannot change password" ayarını ACL üzerinden tespit edebilmek için DACL'i
+                // de aynı paged search içinde (ekstra bağlantı gerektirmeden) çekiyoruz.
+                // Bilgisayar sorgusunda bu bilgiye ihtiyaç yok, gereksiz yere istenmiyor.
+                searcher.SecurityMasks = SecurityMasks.Dacl;
+            }
+
+            foreach (var propertyName in properties)
             {
                 searcher.PropertiesToLoad.Add(propertyName);
             }
@@ -146,7 +188,7 @@ namespace ADAssessment.Infrastructure.Ldap
 
             foreach (SearchResult result in searchResults)
             {
-                results.Add(MapToUserAccount(result));
+                results.Add(mapper(result));
             }
 
             return results;
@@ -174,6 +216,19 @@ namespace ADAssessment.Infrastructure.Ldap
                 MemberOfCount = result.Properties.Contains("memberOf") ? result.Properties["memberOf"].Count : 0,
                 ServicePrincipalNames = spnList,
                 IsCannotChangePassword = IsCannotChangePasswordViaAcl(result)
+            };
+        }
+
+        private static AdComputerAccount MapToComputerAccount(SearchResult result)
+        {
+            return new AdComputerAccount
+            {
+                SamAccountName = GetString(result, "sAMAccountName"),
+                DistinguishedName = GetString(result, "distinguishedName"),
+                OperatingSystem = GetString(result, "operatingSystem"),
+                UserAccountControl = GetInt(result, "userAccountControl"),
+                PasswordLastSet = GetFileTimeAsDateTime(result, "pwdLastSet"),
+                LastLogonTimestamp = GetFileTimeAsDateTime(result, "lastLogonTimestamp")
             };
         }
 
