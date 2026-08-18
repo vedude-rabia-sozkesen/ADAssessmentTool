@@ -24,7 +24,7 @@ namespace ADAssessment.Tests.WebAPI.Fakes
             _exceptionToThrow = exceptionToThrow;
         }
 
-        public LdapProtocolSecuritySettings CheckSigningEnforcement()
+        public LdapProtocolSecuritySettings CheckProtocolSecurity()
         {
             if (_exceptionToThrow != null)
             {

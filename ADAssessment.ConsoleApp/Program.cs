@@ -78,7 +78,7 @@ namespace ADAssessment.ConsoleApp
                 {
                     Console.WriteLine("[*] DC'nin LDAP protokol güvenliği (signing) kontrol ediliyor...");
                     var ldapProtocolChecker = new LdapProtocolSecurityChecker(options);
-                    ldapProtocolSecurity = ldapProtocolChecker.CheckSigningEnforcement();
+                    ldapProtocolSecurity = ldapProtocolChecker.CheckProtocolSecurity();
                     Console.WriteLine("[+] LDAP protokol güvenliği kontrolü tamamlandı.\n");
                 }
                 catch (Exception ldapProtocolEx)
@@ -124,7 +124,8 @@ namespace ADAssessment.ConsoleApp
 
                 var ldapProtocolRules = new List<ILdapProtocolComplianceRule>
                 {
-                    new LdapSigningNotEnforcedRule()      // AD-019
+                    new LdapSigningNotEnforcedRule(),         // AD-019
+                    new LdapChannelBindingNotEnforcedRule()   // AD-020
                 };
 
                 var results = new List<RuleResult>();

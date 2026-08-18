@@ -28,14 +28,15 @@ namespace ADAssessment.Infrastructure.Ldap
             _options = options;
         }
 
-        public LdapProtocolSecuritySettings CheckSigningEnforcement()
+        public LdapProtocolSecuritySettings CheckProtocolSecurity()
         {
             (string server, _) = SysvolDataExtractor.ParseServerAndDomain(_options.LdapPath);
 
             return new LdapProtocolSecuritySettings
             {
                 DomainController = server,
-                IsSigningEnforced = IsSigningEnforced(server)
+                IsSigningEnforced = IsSigningEnforced(server),
+                IsChannelBindingEnforced = IsChannelBindingEnforced(server)
             };
         }
 
@@ -77,6 +78,41 @@ namespace ADAssessment.Infrastructure.Ldap
                 // Örn. invalidCredentials (49) - DC bind isteğini normal şekilde
                 // değerlendirdi (yani güvensiz kanalı reddetmedi), sadece kimlik
                 // bilgileri (beklendiği gibi) geçersiz çıktı.
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Aynı prensip, bu sefer LDAPS (port 636, TLS şifreli) üzerinden: kasıtlı olarak
+        /// sahte kimlik bilgileriyle bind dener, ama Channel Binding Token (CBT) hiç
+        /// eklemeden - System.DirectoryServices.Protocols'un CBT için yerleşik/kolay bir
+        /// desteği olmadığından, normal bir bağlantı zaten bunu doğal olarak yapmıyor.
+        /// DC "channel binding her zaman zorunlu" (LdapEnforceChannelBinding=2) ise, TLS
+        /// zaten kurulmuş olsa bile bind'i CBT eksikliği yüzünden aynı strongerAuthRequired
+        /// koduyla reddeder.
+        /// </summary>
+        private static bool IsChannelBindingEnforced(string server)
+        {
+            var identifier = new LdapDirectoryIdentifier(server, 636);
+            var probeCredential = new NetworkCredential(
+                "adassessment-probe-" + Guid.NewGuid().ToString("N")[..8],
+                Guid.NewGuid().ToString());
+
+            using var connection = new LdapConnection(identifier, probeCredential, AuthType.Basic);
+            connection.SessionOptions.SecureSocketLayer = true;
+            connection.Timeout = TimeSpan.FromSeconds(5);
+
+            try
+            {
+                connection.Bind();
+                return false;
+            }
+            catch (LdapException ex) when (ex.ErrorCode == StrongerAuthRequiredResultCode)
+            {
+                return true;
+            }
+            catch (LdapException)
+            {
                 return false;
             }
         }

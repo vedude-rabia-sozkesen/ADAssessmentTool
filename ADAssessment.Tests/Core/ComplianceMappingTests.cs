@@ -32,6 +32,7 @@ namespace ADAssessment.Tests.Core
             new ObsoleteOperatingSystemRule(),
             new StaleComputerPasswordRule(),
             new LdapSigningNotEnforcedRule(),
+            new LdapChannelBindingNotEnforcedRule(),
         };
 
         [Theory]

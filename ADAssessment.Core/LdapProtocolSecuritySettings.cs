@@ -16,5 +16,14 @@ namespace ADAssessment.Core
         /// yakaladığı bir kimlik doğrulama denemesini başka bir hedefe ilettiği saldırı
         /// türü) karşı savunmasızlık anlamına gelir.
         public bool IsSigningEnforced { get; init; }
+
+        /// DC, LDAPS (TLS şifreli) bağlantılarda Channel Binding Token (CBT - bir kimlik
+        /// doğrulama işlemini üzerinde gerçekleştiği spesifik TLS oturumuna bağlayan
+        /// güvenlik mekanizması) olmadan gelen bind isteklerini reddediyor mu?
+        /// Reddetmiyorsa, TLS şifreli olsa bile yakalanmış bir kimlik doğrulama işlemi
+        /// başka bir TLS oturumuna aktarılıp tekrar oynatılabilir (relay saldırısı,
+        /// ADV190023). LDAP signing'den farklı bir zafiyet yüzeyidir - biri şifresiz
+        /// kanalı, diğeri şifreli kanaldaki oturum bağlama eksikliğini hedefler.
+        public bool IsChannelBindingEnforced { get; init; }
     }
 }

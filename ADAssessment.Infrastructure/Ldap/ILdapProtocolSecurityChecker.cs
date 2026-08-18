@@ -8,6 +8,6 @@ namespace ADAssessment.Infrastructure.Ldap
     /// </summary>
     public interface ILdapProtocolSecurityChecker
     {
-        LdapProtocolSecuritySettings CheckSigningEnforcement();
+        LdapProtocolSecuritySettings CheckProtocolSecurity();
     }
 }

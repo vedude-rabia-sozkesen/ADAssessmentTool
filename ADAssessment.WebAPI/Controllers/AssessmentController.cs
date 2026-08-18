@@ -132,7 +132,7 @@ namespace ADAssessment.WebAPI.Controllers
             LdapProtocolSecuritySettings? ldapProtocolSecurity = null;
             try
             {
-                ldapProtocolSecurity = _ldapProtocolChecker.CheckSigningEnforcement();
+                ldapProtocolSecurity = _ldapProtocolChecker.CheckProtocolSecurity();
             }
             catch (Exception ldapProtocolEx)
             {
