@@ -13,5 +13,7 @@ namespace ADAssessment.Infrastructure.Ldap
         IReadOnlyList<AdUserAccount> GetActiveUsers();
 
         IReadOnlyList<AdComputerAccount> GetComputerAccounts();
+
+        DcSyncRightsSettings GetDcSyncRights();
     }
 }

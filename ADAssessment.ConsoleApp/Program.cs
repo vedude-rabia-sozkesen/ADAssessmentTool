@@ -101,6 +101,20 @@ namespace ADAssessment.ConsoleApp
                     Console.WriteLine($"[-] [SMB PROTOKOL UYARISI] SMB protokol güvenliği kontrol edilemedi ({smbProtocolEx.Message}). İlgili kurallar bu taramada atlanacak.\n");
                 }
 
+                // DCSync Hakları Kontrolü - domain kökünün DACL'ini okuyan ayrı bir sorgu,
+                // aynı sebeple izole edilir.
+                DcSyncRightsSettings? dcSyncRights = null;
+                try
+                {
+                    Console.WriteLine("[*] Domain kökünde DCSync hakları kontrol ediliyor...");
+                    dcSyncRights = extractor.GetDcSyncRights();
+                    Console.WriteLine("[+] DCSync hakları kontrolü tamamlandı.\n");
+                }
+                catch (Exception dcSyncEx)
+                {
+                    Console.WriteLine($"[-] [DCSYNC UYARISI] DCSync hakları kontrol edilemedi ({dcSyncEx.Message}). İlgili kurallar bu taramada atlanacak.\n");
+                }
+
                 // 2. Kuralların Tanımlanması ve Çalıştırılması
                 Console.WriteLine("[*] Güvenlik analizleri başlatılıyor...\n");
 
@@ -149,6 +163,11 @@ namespace ADAssessment.ConsoleApp
                     new AnonymousSmbAccessAllowedRule()       // AD-022
                 };
 
+                var dcSyncRules = new List<IDcSyncComplianceRule>
+                {
+                    new UnexpectedDcSyncRightsRule()          // AD-023
+                };
+
                 var results = new List<RuleResult>();
 
                 void PrintAndCollect(IComplianceRule rule, RuleResult result)
@@ -190,6 +209,7 @@ namespace ADAssessment.ConsoleApp
                 computerRules = computerRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
                 ldapProtocolRules = ldapProtocolRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
                 smbProtocolRules = smbProtocolRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
+                dcSyncRules = dcSyncRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
 
                 foreach (var rule in rules)
                 {
@@ -214,6 +234,11 @@ namespace ADAssessment.ConsoleApp
                 foreach (var rule in smbProtocolRules)
                 {
                     PrintAndCollect(rule, rule.Execute(smbProtocolSecurity!));
+                }
+
+                foreach (var rule in dcSyncRules)
+                {
+                    PrintAndCollect(rule, rule.Execute(dcSyncRights!));
                 }
 
                 // 3. Denetim İzleme (Audit Logging) Kaydı

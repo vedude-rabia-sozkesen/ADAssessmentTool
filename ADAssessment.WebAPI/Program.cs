@@ -128,6 +128,9 @@ builder.Services.AddTransient<ILdapProtocolComplianceRule, AnonymousLdapBindAllo
 // SMB Protokol Güvenliği Tabanlı Uyum Kurallarını DI'a Kaydet
 builder.Services.AddTransient<ISmbProtocolComplianceRule, AnonymousSmbAccessAllowedRule>();
 
+// DCSync Hakları Tabanlı Uyum Kurallarını DI'a Kaydet
+builder.Services.AddTransient<IDcSyncComplianceRule, UnexpectedDcSyncRightsRule>();
+
 // 4. CORS Politikası — sadece appsettings.json > AllowedOrigins içinde açıkça
 // listelenen origin'lere izin verilir. Frontend zaten aynı origin'den (wwwroot)
 // serve edildiğinden varsayılan (boş liste) durumda CORS'a gerek yoktur.

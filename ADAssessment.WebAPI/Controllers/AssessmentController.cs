@@ -30,6 +30,7 @@ namespace ADAssessment.WebAPI.Controllers
         private readonly IEnumerable<IComputerComplianceRule> _computerRules;
         private readonly IEnumerable<ILdapProtocolComplianceRule> _ldapProtocolRules;
         private readonly IEnumerable<ISmbProtocolComplianceRule> _smbProtocolRules;
+        private readonly IEnumerable<IDcSyncComplianceRule> _dcSyncRules;
         private readonly JsonRuleRepository _jsonRepository;
         private readonly IAuditLogger _auditLogger;
         private readonly ILogger<AssessmentController> _logger;
@@ -44,6 +45,7 @@ namespace ADAssessment.WebAPI.Controllers
             IEnumerable<IComputerComplianceRule> computerRules,
             IEnumerable<ILdapProtocolComplianceRule> ldapProtocolRules,
             IEnumerable<ISmbProtocolComplianceRule> smbProtocolRules,
+            IEnumerable<IDcSyncComplianceRule> dcSyncRules,
             JsonRuleRepository jsonRepository,
             IAuditLogger auditLogger,
             ILogger<AssessmentController> logger)
@@ -57,6 +59,7 @@ namespace ADAssessment.WebAPI.Controllers
             _computerRules = computerRules;
             _ldapProtocolRules = ldapProtocolRules;
             _smbProtocolRules = smbProtocolRules;
+            _dcSyncRules = dcSyncRules;
             _jsonRepository = jsonRepository;
             _auditLogger = auditLogger;
             _logger = logger;
@@ -158,6 +161,18 @@ namespace ADAssessment.WebAPI.Controllers
                 _logger.LogWarning(smbProtocolEx, "SMB protokol güvenliği kontrol edilemedi, ilgili kurallar bu taramada atlandı.");
             }
 
+            // DCSync hakları kontrolü de domain kökünün DACL'ini okuyan ayrı bir sorgu
+            // olduğundan, aynı sebeple izole edilir.
+            DcSyncRightsSettings? dcSyncRights = null;
+            try
+            {
+                dcSyncRights = _extractor.GetDcSyncRights();
+            }
+            catch (Exception dcSyncEx)
+            {
+                _logger.LogWarning(dcSyncEx, "DCSync hakları kontrol edilemedi, ilgili kurallar bu taramada atlandı.");
+            }
+
             var rules = new List<IComplianceRule>(_staticRules);
             var dynamicRules = _jsonRepository.LoadRules();
             rules.AddRange(dynamicRules);
@@ -189,7 +204,12 @@ namespace ADAssessment.WebAPI.Controllers
                 results.Add(rule.Execute(smbProtocolSecurity!));
             }
 
-            int totalRulesExecuted = rules.Count + _groupPolicyRules.Count() + _computerRules.Count() + _ldapProtocolRules.Count() + _smbProtocolRules.Count();
+            foreach (var rule in _dcSyncRules)
+            {
+                results.Add(rule.Execute(dcSyncRights!));
+            }
+
+            int totalRulesExecuted = rules.Count + _groupPolicyRules.Count() + _computerRules.Count() + _ldapProtocolRules.Count() + _smbProtocolRules.Count() + _dcSyncRules.Count();
 
             string initiator = User.Identity?.Name ?? "WebAPI_User";
             _auditLogger.LogAssessment(initiator, users.Count, results);
@@ -208,6 +228,7 @@ namespace ADAssessment.WebAPI.Controllers
                 .Concat(_computerRules)
                 .Concat(_ldapProtocolRules)
                 .Concat(_smbProtocolRules)
+                .Concat(_dcSyncRules)
                 .GroupBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 

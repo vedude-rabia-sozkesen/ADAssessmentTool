@@ -35,6 +35,7 @@ namespace ADAssessment.Tests.Core
             new LdapChannelBindingNotEnforcedRule(),
             new AnonymousLdapBindAllowedRule(),
             new AnonymousSmbAccessAllowedRule(),
+            new UnexpectedDcSyncRightsRule(),
         };
 
         [Theory]

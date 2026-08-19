@@ -39,7 +39,8 @@ namespace ADAssessment.Tests.WebAPI
             FakeLdapProtocolSecurityChecker? ldapProtocolChecker = null,
             IEnumerable<ILdapProtocolComplianceRule>? ldapProtocolRules = null,
             FakeSmbProtocolSecurityChecker? smbProtocolChecker = null,
-            IEnumerable<ISmbProtocolComplianceRule>? smbProtocolRules = null)
+            IEnumerable<ISmbProtocolComplianceRule>? smbProtocolRules = null,
+            IEnumerable<IDcSyncComplianceRule>? dcSyncRules = null)
         {
             var controller = new AssessmentController(
                 extractor,
@@ -51,6 +52,7 @@ namespace ADAssessment.Tests.WebAPI
                 computerRules ?? Array.Empty<IComputerComplianceRule>(),
                 ldapProtocolRules ?? Array.Empty<ILdapProtocolComplianceRule>(),
                 smbProtocolRules ?? Array.Empty<ISmbProtocolComplianceRule>(),
+                dcSyncRules ?? Array.Empty<IDcSyncComplianceRule>(),
                 new JsonRuleRepository(_emptyRulesFolder),
                 auditLogger,
                 NullLogger<AssessmentController>.Instance);
@@ -181,6 +183,27 @@ namespace ADAssessment.Tests.WebAPI
             Assert.Equal(0, response.ScannedComputerCount);
             var computerRuleResult = Assert.Single(response.Results, r => r.RuleId == "AD-016");
             Assert.Equal("Informational", computerRuleResult.RiskLevel);
+        }
+
+        [Fact]
+        public void RunScan_DcSyncQueryThrows_UserScanStillSucceeds()
+        {
+            // DCSync hakları sorgusundaki bir hatanın (ör. domain kökü okunamıyor) tüm
+            // taramayı düşürmemesi gerektiğinin regresyon testi - aynı izolasyon deseni.
+            var users = new List<AdUserAccount> { new AdUserAccount { SamAccountName = "jdoe", UserAccountControl = 0x0200 } };
+            var extractor = FakeLdapDataExtractor.ThrowingOnDcSyncQuery(users, new InvalidOperationException("dcsync query failed (test)"));
+            var auditLogger = new FakeAuditLogger();
+            var controller = MakeController(
+                extractor,
+                auditLogger,
+                dcSyncRules: new IDcSyncComplianceRule[] { new UnexpectedDcSyncRightsRule() });
+
+            var result = controller.RunScan();
+
+            var okResult = Assert.IsType<OkObjectResult>(result);
+            var response = Assert.IsType<ScanResultResponse>(okResult.Value);
+            var dcSyncRuleResult = Assert.Single(response.Results, r => r.RuleId == "AD-023");
+            Assert.Equal("Informational", dcSyncRuleResult.RiskLevel);
         }
 
         [Fact]

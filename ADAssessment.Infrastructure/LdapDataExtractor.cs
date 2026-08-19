@@ -4,6 +4,7 @@ using System.DirectoryServices;
 using System.Reflection;
 using System.Security;
 using System.Security.AccessControl;
+using System.Security.Principal;
 using ADAssessment.Core;
 
 namespace ADAssessment.Infrastructure.Ldap
@@ -22,6 +23,22 @@ namespace ADAssessment.Infrastructure.Ldap
         private static readonly Guid ChangePasswordRightGuid = new("ab721a53-1e2f-11d0-9819-00aa0040529b");
         private const string EveryoneSid = "S-1-1-0";
         private const string SelfSid = "S-1-5-10";
+
+        // DS-Replication-Get-Changes / DS-Replication-Get-Changes-All - MS-ADTS'te tanımlı,
+        // "DCSync" saldırısının temelini oluşturan iki kontrol erişim hakkının well-known GUID'i.
+        private static readonly Guid GetChangesRightGuid = new("1131f6aa-9c07-11d1-f79f-00c04fc2dcd2");
+        private static readonly Guid GetChangesAllRightGuid = new("1131f6ad-9c07-11d1-f79f-00c04fc2dcd2");
+
+        // DCSync haklarına varsayılan/beklenen şekilde sahip olan sabit (well-known) asıl
+        // güvenlik prensipleri - domain'e göre değişmeyenler burada, domain'e özgü Domain
+        // Admins (RID 512), Enterprise Admins (RID 519), Domain Controllers (RID 516) ve
+        // Enterprise Read-only Domain Controllers (RID 498) ise domain SID'i öğrenildikten
+        // sonra ayrıca eklenir. Canlı lab testinde RID 516/498'in unutulması gerçek bir
+        // yanlış pozitife (false positive) yol açmıştı - normal DC'ler ve RODC'ler
+        // varsayılan olarak bu hakların bir kısmına/tamamına sahiptir.
+        private const string BuiltinAdministratorsSid = "S-1-5-32-544";
+        private const string EnterpriseDomainControllersSid = "S-1-5-9";
+        private const string LocalSystemSid = "S-1-5-18";
 
         private const string UserFilter = "(&(objectCategory=person)(objectClass=user))";
         private const string ComputerFilter = "(objectCategory=computer)";
@@ -102,6 +119,155 @@ namespace ADAssessment.Infrastructure.Ldap
         {
             return ExecuteWithLdapsFallback(
                 (path, useLdaps) => Query(path, useLdaps, ComputerFilter, ComputerProperties, MapToComputerAccount, includeDacl: false));
+        }
+
+        /// <summary>
+        /// Domain'in kök nesnesinin DACL'inde, DCSync haklarına (bkz. GetChangesRightGuid/
+        /// GetChangesAllRightGuid) sahip, varsayılan olmayan asıl güvenlik prensiplerini
+        /// tespit eder. Kullanıcı/bilgisayar sorgularından farklı olarak tek bir nesne
+        /// (domain kökü) okunur, bu yüzden ExecuteWithLdapsFallback'in liste döndüren
+        /// imzasına, tek elemanlı bir liste olarak uyarlanır.
+        /// </summary>
+        public DcSyncRightsSettings GetDcSyncRights()
+        {
+            var results = ExecuteWithLdapsFallback<DcSyncRightsSettings>(
+                (path, useLdaps) => QueryDcSyncRights(path, useLdaps));
+
+            return results.Count > 0 ? results[0] : new DcSyncRightsSettings();
+        }
+
+        private IReadOnlyList<DcSyncRightsSettings> QueryDcSyncRights(string path, bool useLdaps)
+        {
+            var authType = AuthenticationTypes.Secure;
+            authType |= useLdaps ? AuthenticationTypes.SecureSocketsLayer : AuthenticationTypes.Sealing;
+
+            using var rootEntry = string.IsNullOrEmpty(_options.Username)
+                ? new DirectoryEntry(path) { AuthenticationType = authType }
+                : new DirectoryEntry(path, _options.Username, _options.Password, authType);
+
+            using var searcher = new DirectorySearcher(rootEntry)
+            {
+                Filter = "(objectClass=*)",
+                SearchScope = SearchScope.Base,
+                ReferralChasing = ReferralChasingOption.None,
+                // Domain kökünün kendi DACL'ini (kimin replikasyon hakkı olduğunu) ve
+                // objectSid'ini (domain'e özgü Domain Admins/Enterprise Admins SID'lerini
+                // hesaplayabilmek için) okuyoruz.
+                SecurityMasks = SecurityMasks.Dacl
+            };
+            searcher.PropertiesToLoad.Add("nTSecurityDescriptor");
+            searcher.PropertiesToLoad.Add("objectSid");
+            searcher.PropertiesToLoad.Add("distinguishedName");
+
+            SearchResult? result = searcher.FindOne();
+            if (result == null)
+            {
+                return Array.Empty<DcSyncRightsSettings>();
+            }
+
+            string domainDn = GetString(result, "distinguishedName");
+            var unexpectedPrincipals = new List<string>();
+
+            bool hasDacl = result.Properties.Contains("ntsecuritydescriptor") && result.Properties["ntsecuritydescriptor"].Count > 0;
+            bool hasSid = result.Properties.Contains("objectSid") && result.Properties["objectSid"].Count > 0;
+
+            if (hasDacl && hasSid)
+            {
+                string domainSidValue = new SecurityIdentifier((byte[])result.Properties["objectSid"][0], 0).Value;
+
+                try
+                {
+                    var sdBytes = (byte[])result.Properties["ntsecuritydescriptor"][0];
+                    var rawSecurityDescriptor = new RawSecurityDescriptor(sdBytes, 0);
+                    RawAcl? dacl = rawSecurityDescriptor.DiscretionaryAcl;
+
+                    if (dacl != null)
+                    {
+                        var foundSids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                        foreach (GenericAce ace in dacl)
+                        {
+                            if (ace is not ObjectAce objectAce) continue;
+                            if (objectAce.AceType != AceType.AccessAllowedObject) continue;
+                            if ((objectAce.ObjectAceFlags & ObjectAceFlags.ObjectAceTypePresent) == 0) continue;
+                            if (objectAce.ObjectAceType != GetChangesRightGuid && objectAce.ObjectAceType != GetChangesAllRightGuid) continue;
+
+                            string sidValue = objectAce.SecurityIdentifier.Value;
+                            if (IsExpectedDcSyncPrincipal(sidValue, domainSidValue)) continue;
+
+                            foundSids.Add(sidValue);
+                        }
+
+                        foreach (string sidValue in foundSids)
+                        {
+                            unexpectedPrincipals.Add(ResolvePrincipalName(sidValue));
+                        }
+                    }
+                }
+                catch
+                {
+                    // ACL ayrıştırılamazsa güvenli tarafta kalınır: hiçbir beklenmeyen
+                    // prensip raporlanmaz (boş sonuç), tüm sorgu başarısız olmaz.
+                }
+            }
+
+            return new List<DcSyncRightsSettings>
+            {
+                new DcSyncRightsSettings
+                {
+                    DomainDistinguishedName = domainDn,
+                    UnexpectedPrincipals = unexpectedPrincipals
+                }
+            };
+        }
+
+        // Domain'e özgü (domain SID + RID) beklenen DCSync sahipleri: 512=Domain Admins,
+        // 519=Enterprise Admins (yalnızca forest root'ta anlamlı), 516=Domain Controllers
+        // (normal DC'ler arası replikasyon için varsayılan), 498=Enterprise Read-only
+        // Domain Controllers (RODC'lerin filtrelenmiş replikasyonu için varsayılan).
+        private static readonly string[] ExpectedDcSyncRids = { "512", "519", "516", "498" };
+
+        /// <summary>
+        /// Bir SID'in, DCSync haklarına varsayılan/beklenen şekilde sahip olan bir asıl
+        /// güvenlik prensibine ait olup olmadığını kontrol eder. Public: saf/I-O'suz bir
+        /// yardımcı fonksiyon olduğundan doğrudan birim testiyle doğrulanabilir - bu, canlı
+        /// lab testinde Domain Controllers (RID 516) ve Enterprise Read-only Domain
+        /// Controllers (RID 498) gruplarının unutulup yanlış pozitif üretmesiyle bulunan
+        /// gerçek bir hatanın regresyon testidir.
+        /// </summary>
+        public static bool IsExpectedDcSyncPrincipal(string sidValue, string domainSidValue)
+        {
+            if (string.Equals(sidValue, BuiltinAdministratorsSid, StringComparison.OrdinalIgnoreCase)) return true;
+            if (string.Equals(sidValue, EnterpriseDomainControllersSid, StringComparison.OrdinalIgnoreCase)) return true;
+            if (string.Equals(sidValue, LocalSystemSid, StringComparison.OrdinalIgnoreCase)) return true;
+
+            foreach (string rid in ExpectedDcSyncRids)
+            {
+                if (string.Equals(sidValue, domainSidValue + "-" + rid, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Ham SID'i, mümkünse okunabilir bir isme ("DOMAIN\isim") çözümler - bir güvenlik
+        /// analistine "S-1-5-21-...-1234" göstermek yerine kimin gerçekten sorumlu olduğunu
+        /// göstermek için. Çözümlenemezse (örn. yetim/silinmiş SID) ham SID'e geri döner.
+        /// </summary>
+        private static string ResolvePrincipalName(string sidValue)
+        {
+            try
+            {
+                var sid = new SecurityIdentifier(sidValue);
+                return sid.Translate(typeof(NTAccount)).Value;
+            }
+            catch
+            {
+                return sidValue;
+            }
         }
 
         /// <summary>
