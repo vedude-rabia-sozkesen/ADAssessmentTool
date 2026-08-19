@@ -125,6 +125,7 @@ builder.Services.AddTransient<IComputerComplianceRule, StaleComputerPasswordRule
 builder.Services.AddTransient<IComputerComplianceRule, ComputerUnconstrainedDelegationRule>();
 builder.Services.AddTransient<IComputerComplianceRule, UnexpectedResourceBasedConstrainedDelegationRule>();
 builder.Services.AddTransient<IComputerComplianceRule, ProtocolTransitionDelegationRule>();
+builder.Services.AddTransient<IComputerComplianceRule, MissingLapsProtectionRule>();
 
 // LDAP Protokol Güvenliği Tabanlı Uyum Kurallarını DI'a Kaydet
 builder.Services.AddTransient<ILdapProtocolComplianceRule, LdapSigningNotEnforcedRule>();
@@ -142,6 +143,9 @@ builder.Services.AddTransient<IDomainFunctionalLevelComplianceRule, ObsoleteDoma
 
 // Forest Seviyesi Özellik Tabanlı Uyum Kurallarını DI'a Kaydet
 builder.Services.AddTransient<IForestComplianceRule, RecycleBinNotEnabledRule>();
+
+// Trust İlişkisi Tabanlı Uyum Kurallarını DI'a Kaydet
+builder.Services.AddTransient<ITrustComplianceRule, SidFilteringDisabledRule>();
 
 // 4. CORS Politikası — sadece appsettings.json > AllowedOrigins içinde açıkça
 // listelenen origin'lere izin verilir. Frontend zaten aynı origin'den (wwwroot)

@@ -44,6 +44,8 @@ namespace ADAssessment.Tests.Core
             new ProtocolTransitionDelegationRule(),
             new AesEncryptionNotSupportedRule(),
             new RecycleBinNotEnabledRule(),
+            new SidFilteringDisabledRule(),
+            new MissingLapsProtectionRule(),
         };
 
         [Theory]

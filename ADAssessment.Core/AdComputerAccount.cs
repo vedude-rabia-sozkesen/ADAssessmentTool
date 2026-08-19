@@ -60,5 +60,14 @@ namespace ADAssessment.Core
         /// ele geçiren bir saldırgan, listelenen hedeflere karşı HERHANGİ BİR kullanıcı gibi
         /// davranabilir.
         public bool IsProtocolTransitionDelegation => (UserAccountControl & 0x1000000) != 0;
+
+        /// LAPS (Local Administrator Password Solution) tarafından yönetilen bir yerel
+        /// yönetici parolası bu bilgisayar için var mı? Parolanın KENDİSİ (ms-Mcs-AdmPwd /
+        /// msLAPS-Password) şemada "confidential" (gizli) olarak işaretlidir ve düşük
+        /// yetkili bir hesap tarafından okunamaz - bu yüzden VARLIĞINI değil, parolanın son
+        /// kullanma zamanını taşıyan ve normal (gizli olmayan) bir öznitelik olan
+        /// ms-Mcs-AdmPwdExpirationTime / msLAPS-PasswordExpirationTime'ın varlığı kontrol
+        /// edilir - bu, "LAPS bu makinede yapılandırılmış mı" sorusuna güvenli bir yanıt verir.
+        public bool HasLapsManagedPassword { get; init; }
     }
 }

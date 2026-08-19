@@ -41,7 +41,8 @@ namespace ADAssessment.Tests.WebAPI
                 Array.Empty<ISmbProtocolComplianceRule>(),
                 Array.Empty<IDcSyncComplianceRule>(),
                 Array.Empty<IDomainFunctionalLevelComplianceRule>(),
-                Array.Empty<IForestComplianceRule>());
+                Array.Empty<IForestComplianceRule>(),
+                Array.Empty<ITrustComplianceRule>());
         }
 
         private static JsonRuleDefinition SimpleDefinition(string ruleId) => new JsonRuleDefinition

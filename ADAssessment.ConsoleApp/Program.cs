@@ -143,6 +143,20 @@ namespace ADAssessment.ConsoleApp
                     Console.WriteLine($"[-] [FOREST UYARISI] Forest seviyesi özellikler kontrol edilemedi ({forestEx.Message}). İlgili kurallar bu taramada atlanacak.\n");
                 }
 
+                // Trust İlişkileri Kontrolü - CN=System konteynerini okuyan ayrı bir sorgu,
+                // aynı sebeple izole edilir.
+                IReadOnlyList<AdTrustRelationship>? trusts = null;
+                try
+                {
+                    Console.WriteLine("[*] Güven ilişkileri (trust) kontrol ediliyor...");
+                    trusts = extractor.GetTrustRelationships();
+                    Console.WriteLine($"[+] {trusts.Count} adet trust ilişkisi bulundu.\n");
+                }
+                catch (Exception trustEx)
+                {
+                    Console.WriteLine($"[-] [TRUST UYARISI] Trust ilişkileri kontrol edilemedi ({trustEx.Message}). İlgili kurallar bu taramada atlanacak.\n");
+                }
+
                 // 2. Kuralların Tanımlanması ve Çalıştırılması
                 Console.WriteLine("[*] Güvenlik analizleri başlatılıyor...\n");
 
@@ -182,7 +196,8 @@ namespace ADAssessment.ConsoleApp
                     new StaleComputerPasswordRule(),       // AD-018
                     new ComputerUnconstrainedDelegationRule(),               // AD-024
                     new UnexpectedResourceBasedConstrainedDelegationRule(),  // AD-028
-                    new ProtocolTransitionDelegationRule()                   // AD-029
+                    new ProtocolTransitionDelegationRule(),                  // AD-029
+                    new MissingLapsProtectionRule()                          // AD-033
                 };
 
                 var ldapProtocolRules = new List<ILdapProtocolComplianceRule>
@@ -210,6 +225,11 @@ namespace ADAssessment.ConsoleApp
                 var forestRules = new List<IForestComplianceRule>
                 {
                     new RecycleBinNotEnabledRule()            // AD-031
+                };
+
+                var trustRules = new List<ITrustComplianceRule>
+                {
+                    new SidFilteringDisabledRule()            // AD-032
                 };
 
                 var results = new List<RuleResult>();
@@ -256,6 +276,7 @@ namespace ADAssessment.ConsoleApp
                 dcSyncRules = dcSyncRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
                 domainFunctionalLevelRules = domainFunctionalLevelRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
                 forestRules = forestRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
+                trustRules = trustRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
 
                 foreach (var rule in rules)
                 {
@@ -295,6 +316,11 @@ namespace ADAssessment.ConsoleApp
                 foreach (var rule in forestRules)
                 {
                     PrintAndCollect(rule, rule.Execute(forestFeatures!));
+                }
+
+                foreach (var rule in trustRules)
+                {
+                    PrintAndCollect(rule, rule.Execute(trusts!));
                 }
 
                 // 3. Denetim İzleme (Audit Logging) Kaydı

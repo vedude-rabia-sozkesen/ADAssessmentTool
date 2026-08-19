@@ -19,5 +19,7 @@ namespace ADAssessment.Infrastructure.Ldap
         DomainFunctionalLevelSettings GetDomainFunctionalLevel();
 
         ForestOptionalFeatureSettings GetForestOptionalFeatures();
+
+        IReadOnlyList<AdTrustRelationship> GetTrustRelationships();
     }
 }

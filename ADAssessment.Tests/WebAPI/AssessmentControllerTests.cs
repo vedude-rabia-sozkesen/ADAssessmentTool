@@ -42,7 +42,8 @@ namespace ADAssessment.Tests.WebAPI
             IEnumerable<ISmbProtocolComplianceRule>? smbProtocolRules = null,
             IEnumerable<IDcSyncComplianceRule>? dcSyncRules = null,
             IEnumerable<IDomainFunctionalLevelComplianceRule>? domainFunctionalLevelRules = null,
-            IEnumerable<IForestComplianceRule>? forestRules = null)
+            IEnumerable<IForestComplianceRule>? forestRules = null,
+            IEnumerable<ITrustComplianceRule>? trustRules = null)
         {
             var controller = new AssessmentController(
                 extractor,
@@ -57,6 +58,7 @@ namespace ADAssessment.Tests.WebAPI
                 dcSyncRules ?? Array.Empty<IDcSyncComplianceRule>(),
                 domainFunctionalLevelRules ?? Array.Empty<IDomainFunctionalLevelComplianceRule>(),
                 forestRules ?? Array.Empty<IForestComplianceRule>(),
+                trustRules ?? Array.Empty<ITrustComplianceRule>(),
                 new JsonRuleRepository(_emptyRulesFolder),
                 auditLogger,
                 NullLogger<AssessmentController>.Instance);

@@ -68,7 +68,9 @@ namespace ADAssessment.Infrastructure.Ldap
             "pwdLastSet",
             "lastLogonTimestamp",
             "msDS-AllowedToActOnBehalfOfOtherIdentity",
-            "msDS-AllowedToDelegateTo"
+            "msDS-AllowedToDelegateTo",
+            "ms-Mcs-AdmPwdExpirationTime",
+            "msLAPS-PasswordExpirationTime"
         };
 
         private readonly LdapConnectionOptions _options;
@@ -379,6 +381,64 @@ namespace ADAssessment.Infrastructure.Ldap
             return hostPrefix + "/" + dn;
         }
 
+        /// <summary>
+        /// Bu domain'in kurduğu güven ilişkilerini (trust) okur. AD'de her trust, domain
+        /// kökünün altındaki sabit "CN=System" konteynerinde bir "trustedDomain" nesnesi
+        /// olarak saklanır - kullanıcı/bilgisayar sorgularının aksine (tüm alt ağacı tarayan
+        /// Subtree scope), burada System konteynerinin doğrudan altına (OneLevel) bakmak
+        /// yeterlidir çünkü trustedDomain nesneleri iç içe (nested) bulunmaz.
+        /// </summary>
+        public IReadOnlyList<AdTrustRelationship> GetTrustRelationships()
+        {
+            return ExecuteWithLdapsFallback<AdTrustRelationship>(
+                (path, useLdaps) => QueryTrustRelationships(path, useLdaps));
+        }
+
+        private IReadOnlyList<AdTrustRelationship> QueryTrustRelationships(string path, bool useLdaps)
+        {
+            string baseDn = LdapProtocolSecurityChecker.ExtractBaseDn(path);
+            if (string.IsNullOrEmpty(baseDn))
+            {
+                return Array.Empty<AdTrustRelationship>();
+            }
+
+            string systemContainerPath = BuildPathWithDn(path, "CN=System," + baseDn);
+
+            var authType = AuthenticationTypes.Secure;
+            authType |= useLdaps ? AuthenticationTypes.SecureSocketsLayer : AuthenticationTypes.Sealing;
+
+            using var systemEntry = string.IsNullOrEmpty(_options.Username)
+                ? new DirectoryEntry(systemContainerPath) { AuthenticationType = authType }
+                : new DirectoryEntry(systemContainerPath, _options.Username, _options.Password, authType);
+
+            using var searcher = new DirectorySearcher(systemEntry)
+            {
+                Filter = "(objectClass=trustedDomain)",
+                SearchScope = SearchScope.OneLevel,
+                ReferralChasing = ReferralChasingOption.None
+            };
+            searcher.PropertiesToLoad.Add("trustPartner");
+            searcher.PropertiesToLoad.Add("trustDirection");
+            searcher.PropertiesToLoad.Add("trustType");
+            searcher.PropertiesToLoad.Add("trustAttributes");
+
+            var results = new List<AdTrustRelationship>();
+
+            using SearchResultCollection searchResults = searcher.FindAll();
+            foreach (SearchResult result in searchResults)
+            {
+                results.Add(new AdTrustRelationship
+                {
+                    TrustPartner = GetString(result, "trustPartner"),
+                    TrustDirection = GetInt(result, "trustDirection"),
+                    TrustType = GetInt(result, "trustType"),
+                    TrustAttributes = GetInt(result, "trustAttributes")
+                });
+            }
+
+            return results;
+        }
+
         // Domain'e özgü (domain SID + RID) beklenen DCSync sahipleri: 512=Domain Admins,
         // 519=Enterprise Admins (yalnızca forest root'ta anlamlı), 516=Domain Controllers
         // (normal DC'ler arası replikasyon için varsayılan), 498=Enterprise Read-only
@@ -565,8 +625,14 @@ namespace ADAssessment.Infrastructure.Ldap
                 PasswordLastSet = GetFileTimeAsDateTime(result, "pwdLastSet"),
                 LastLogonTimestamp = GetFileTimeAsDateTime(result, "lastLogonTimestamp"),
                 ResourceBasedConstrainedDelegationPrincipals = ParseRbcdPrincipals(result),
-                AllowedToDelegateTo = delegateToList
+                AllowedToDelegateTo = delegateToList,
+                HasLapsManagedPassword = HasAnyValue(result, "ms-Mcs-AdmPwdExpirationTime") || HasAnyValue(result, "msLAPS-PasswordExpirationTime")
             };
+        }
+
+        private static bool HasAnyValue(SearchResult result, string propertyName)
+        {
+            return result.Properties.Contains(propertyName) && result.Properties[propertyName].Count > 0;
         }
 
         /// <summary>
