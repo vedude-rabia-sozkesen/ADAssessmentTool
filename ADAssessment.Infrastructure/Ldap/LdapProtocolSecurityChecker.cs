@@ -32,12 +32,33 @@ namespace ADAssessment.Infrastructure.Ldap
         {
             (string server, _) = SysvolDataExtractor.ParseServerAndDomain(_options.LdapPath);
 
+            string baseDn = ExtractBaseDn(_options.LdapPath);
+
             return new LdapProtocolSecuritySettings
             {
                 DomainController = server,
                 IsSigningEnforced = IsSigningEnforced(server),
-                IsChannelBindingEnforced = IsChannelBindingEnforced(server)
+                IsChannelBindingEnforced = IsChannelBindingEnforced(server),
+                IsAnonymousBindAllowed = IsAnonymousBindAllowed(server, baseDn)
             };
+        }
+
+        /// <summary>
+        /// LDAP path'inden ("LDAP://192.168.92.100/DC=lab,DC=local") arama tabanı
+        /// (base DN, "DC=lab,DC=local") kısmını çıkarır - SysvolDataExtractor.
+        /// ParseServerAndDomain'in nokta ayraçlı ("lab.local") formu döndürmesinin
+        /// aksine, burada LDAP arama isteğine doğrudan verilebilecek DN formu gerekiyor.
+        /// Public: saf/I-O'suz bir yardımcı fonksiyon olduğundan doğrudan birim testiyle
+        /// doğrulanabilir (bkz. SysvolDataExtractor.ParseServerAndDomain - aynı desen).
+        /// </summary>
+        public static string ExtractBaseDn(string ldapPath)
+        {
+            string withoutScheme = ldapPath
+                .Replace("LDAPS://", string.Empty, StringComparison.OrdinalIgnoreCase)
+                .Replace("LDAP://", string.Empty, StringComparison.OrdinalIgnoreCase);
+
+            int slashIndex = withoutScheme.IndexOf('/');
+            return slashIndex >= 0 ? withoutScheme[(slashIndex + 1)..] : string.Empty;
         }
 
         /// <summary>
@@ -112,6 +133,48 @@ namespace ADAssessment.Infrastructure.Ldap
                 return true;
             }
             catch (LdapException)
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Anonim (kimlik doğrulamasız) bir bind dener, ama tek başına bunun başarılı
+        /// olması yeterli sinyal değil - AD'nin RootDSE'si (dizin kök meta verisi) zaten
+        /// tasarım gereği anonim erişime açıktır, bu bir zafiyet değildir. Asıl önemli
+        /// olan, anonim oturumun domain'in KENDİ veri bölümünde gerçek nesneleri
+        /// (kullanıcılar) arayabilmesi - bu yüzden RootDSE değil, doğrudan base DN
+        /// içinde bir kullanıcı araması deneniyor.
+        /// </summary>
+        private static bool IsAnonymousBindAllowed(string server, string baseDn)
+        {
+            if (string.IsNullOrEmpty(baseDn))
+            {
+                return false;
+            }
+
+            var identifier = new LdapDirectoryIdentifier(server, 389);
+            using var connection = new LdapConnection(identifier);
+            connection.AuthType = AuthType.Anonymous;
+            connection.SessionOptions.SecureSocketLayer = false;
+            connection.Timeout = TimeSpan.FromSeconds(5);
+
+            try
+            {
+                connection.Bind();
+
+                var searchRequest = new SearchRequest(baseDn, "(objectClass=user)", SearchScope.Subtree, "sAMAccountName")
+                {
+                    SizeLimit = 1
+                };
+                var response = (SearchResponse)connection.SendRequest(searchRequest);
+                return response.Entries.Count > 0;
+            }
+            catch (LdapException)
+            {
+                return false;
+            }
+            catch (DirectoryOperationException)
             {
                 return false;
             }

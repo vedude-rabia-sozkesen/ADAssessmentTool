@@ -25,5 +25,12 @@ namespace ADAssessment.Core
         /// ADV190023). LDAP signing'den farklı bir zafiyet yüzeyidir - biri şifresiz
         /// kanalı, diğeri şifreli kanaldaki oturum bağlama eksikliğini hedefler.
         public bool IsChannelBindingEnforced { get; init; }
+
+        /// DC, kimlik doğrulaması yapılmamış (anonim) bir bağlantının domain'in kendi
+        /// veri bölümünde (naming context) gerçek kullanıcı nesnelerini aramasına izin
+        /// veriyor mu? Bu, saldırganın hiçbir kimlik bilgisi olmadan tüm kullanıcı
+        /// listesini (ve diğer AD nesnelerini) çıkarabilmesi anlamına gelir - bir
+        /// saldırının en erken keşif (reconnaissance) aşamalarından biri.
+        public bool IsAnonymousBindAllowed { get; init; }
     }
 }

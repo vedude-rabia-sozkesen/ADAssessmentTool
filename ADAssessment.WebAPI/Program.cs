@@ -113,6 +113,7 @@ builder.Services.AddTransient<IComputerComplianceRule, StaleComputerPasswordRule
 // LDAP Protokol Güvenliği Tabanlı Uyum Kurallarını DI'a Kaydet
 builder.Services.AddTransient<ILdapProtocolComplianceRule, LdapSigningNotEnforcedRule>();
 builder.Services.AddTransient<ILdapProtocolComplianceRule, LdapChannelBindingNotEnforcedRule>();
+builder.Services.AddTransient<ILdapProtocolComplianceRule, AnonymousLdapBindAllowedRule>();
 
 // 4. CORS Politikası — sadece appsettings.json > AllowedOrigins içinde açıkça
 // listelenen origin'lere izin verilir. Frontend zaten aynı origin'den (wwwroot)

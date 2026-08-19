@@ -125,7 +125,8 @@ namespace ADAssessment.ConsoleApp
                 var ldapProtocolRules = new List<ILdapProtocolComplianceRule>
                 {
                     new LdapSigningNotEnforcedRule(),         // AD-019
-                    new LdapChannelBindingNotEnforcedRule()   // AD-020
+                    new LdapChannelBindingNotEnforcedRule(),  // AD-020
+                    new AnonymousLdapBindAllowedRule()        // AD-021
                 };
 
                 var results = new List<RuleResult>();

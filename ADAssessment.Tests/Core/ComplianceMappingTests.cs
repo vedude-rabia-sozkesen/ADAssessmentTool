@@ -33,6 +33,7 @@ namespace ADAssessment.Tests.Core
             new StaleComputerPasswordRule(),
             new LdapSigningNotEnforcedRule(),
             new LdapChannelBindingNotEnforcedRule(),
+            new AnonymousLdapBindAllowedRule(),
         };
 
         [Theory]
