@@ -39,6 +39,11 @@ namespace ADAssessment.Tests.Core
             new ComputerUnconstrainedDelegationRule(),
             new SidHistoryPresentRule(),
             new ObsoleteDomainFunctionalLevelRule(),
+            new KrbtgtPasswordAgeRule(),
+            new UnexpectedResourceBasedConstrainedDelegationRule(),
+            new ProtocolTransitionDelegationRule(),
+            new AesEncryptionNotSupportedRule(),
+            new RecycleBinNotEnabledRule(),
         };
 
         [Theory]

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace ADAssessment.Core
 {
@@ -37,5 +38,27 @@ namespace ADAssessment.Core
         /// (DC'ler arası bazı Kerberos işlemleri bunu gerektirir) - bu yüzden delegasyon
         /// kuralında DC'leri elemek (false positive önlemek) için kullanılır.
         public bool IsDomainController => (UserAccountControl & 0x2000) != 0;
+
+        /// msDS-AllowedToActOnBehalfOfOtherIdentity özniteliğinden (bu bilgisayar adına
+        /// "kimlik doğrulayabilir" - Resource-Based Constrained Delegation, RBCD - yetkisi
+        /// verilmiş asıl güvenlik prensiplerinin listesi. Bu öznitelik VARSAYILAN olarak
+        /// hiçbir bilgisayarda set edilmez - herhangi bir değer taşıması, o bilgisayarı
+        /// kontrol eden bir yetkinin, listedeki prensibi ele geçiren bir saldırgana
+        /// devredildiği anlamına gelir (saldırgan o prensip olarak bu bilgisayarda SYSTEM
+        /// yetkisiyle kimlik doğrulayabilir).
+        public IReadOnlyList<string> ResourceBasedConstrainedDelegationPrincipals { get; init; } = Array.Empty<string>();
+
+        /// msDS-AllowedToDelegateTo özniteliğindeki hedef Service Principal Name (SPN)
+        /// listesi - Kısıtlı Delegasyon (Constrained Delegation)'ın bu hesabın hangi
+        /// hedeflere delegasyon yapabileceğini sınırlayan listesi.
+        public IReadOnlyList<string> AllowedToDelegateTo { get; init; } = Array.Empty<string>();
+
+        /// UserAccountControl bit 24 (0x1000000) = TRUSTED_TO_AUTH_FOR_DELEGATION bayrağını
+        /// kontrol eder. Bu bayrak, hesabın S4U2Self ile HEDEF KULLANICININ PAROLASINI HİÇ
+        /// BİLMEDEN o kullanıcı adına bir bilet talep edebilmesini sağlar ("Protokol Geçişi" -
+        /// Protocol Transition). AllowedToDelegateTo ile birlikte kullanıldığında, bu hesabı
+        /// ele geçiren bir saldırgan, listelenen hedeflere karşı HERHANGİ BİR kullanıcı gibi
+        /// davranabilir.
+        public bool IsProtocolTransitionDelegation => (UserAccountControl & 0x1000000) != 0;
     }
 }

@@ -17,5 +17,7 @@ namespace ADAssessment.Infrastructure.Ldap
         DcSyncRightsSettings GetDcSyncRights();
 
         DomainFunctionalLevelSettings GetDomainFunctionalLevel();
+
+        ForestOptionalFeatureSettings GetForestOptionalFeatures();
     }
 }

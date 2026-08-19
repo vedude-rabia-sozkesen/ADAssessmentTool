@@ -55,7 +55,8 @@ namespace ADAssessment.Infrastructure.Ldap
             "memberOf",
             "servicePrincipalName",
             "nTSecurityDescriptor",
-            "sIDHistory"
+            "sIDHistory",
+            "msDS-SupportedEncryptionTypes"
         };
 
         private static readonly string[] ComputerProperties =
@@ -65,7 +66,9 @@ namespace ADAssessment.Infrastructure.Ldap
             "operatingSystem",
             "userAccountControl",
             "pwdLastSet",
-            "lastLogonTimestamp"
+            "lastLogonTimestamp",
+            "msDS-AllowedToActOnBehalfOfOtherIdentity",
+            "msDS-AllowedToDelegateTo"
         };
 
         private readonly LdapConnectionOptions _options;
@@ -280,6 +283,102 @@ namespace ADAssessment.Infrastructure.Ldap
             };
         }
 
+        /// <summary>
+        /// Forest seviyesindeki AD Recycle Bin (Silinen Öğeler Kutusu) özelliğinin etkin olup
+        /// olmadığını okur. Kullanıcı/bilgisayar/domain kökü sorgularının hiçbirinden farklı
+        /// olarak, önce RootDSE'den (dizinin kendi kök meta verisi - her DC'nin yayınladığı,
+        /// bağlanmadan önce "forest'ın Configuration bölümü nerede" gibi temel yapılandırma
+        /// bilgilerini taşıyan özel bir nesne) Configuration Naming Context'in tam yolunu
+        /// öğrenip, ardından o yol altındaki bilinen "Recycle Bin Feature" nesnesini okumak
+        /// gerekir - iki adımlı bir sorgu.
+        /// </summary>
+        public ForestOptionalFeatureSettings GetForestOptionalFeatures()
+        {
+            var results = ExecuteWithLdapsFallback<ForestOptionalFeatureSettings>(
+                (path, useLdaps) => QueryForestOptionalFeatures(path, useLdaps));
+
+            return results.Count > 0 ? results[0] : new ForestOptionalFeatureSettings();
+        }
+
+        private IReadOnlyList<ForestOptionalFeatureSettings> QueryForestOptionalFeatures(string path, bool useLdaps)
+        {
+            var authType = AuthenticationTypes.Secure;
+            authType |= useLdaps ? AuthenticationTypes.SecureSocketsLayer : AuthenticationTypes.Sealing;
+
+            string rootDsePath = BuildPathWithDn(path, "RootDSE");
+            using var rootDseEntry = string.IsNullOrEmpty(_options.Username)
+                ? new DirectoryEntry(rootDsePath) { AuthenticationType = authType }
+                : new DirectoryEntry(rootDsePath, _options.Username, _options.Password, authType);
+
+            string? configurationNc = rootDseEntry.Properties.Contains("configurationNamingContext")
+                ? rootDseEntry.Properties["configurationNamingContext"][0]?.ToString()
+                : null;
+
+            if (string.IsNullOrEmpty(configurationNc))
+            {
+                return Array.Empty<ForestOptionalFeatureSettings>();
+            }
+
+            // Recycle Bin Feature nesnesinin DN'i sabit/well-known bir konumdadır - her
+            // forest'ta aynı göreli yolda bulunur, sadece Configuration NC'nin kendisi
+            // (forest'a özgü) baştan öğrenilmesi gerekir.
+            string featureDn = "CN=Recycle Bin Feature,CN=Optional Features,CN=Directory Service,CN=Windows NT,CN=Services," + configurationNc;
+            string featurePath = BuildPathWithDn(path, featureDn);
+
+            using var featureEntry = string.IsNullOrEmpty(_options.Username)
+                ? new DirectoryEntry(featurePath) { AuthenticationType = authType }
+                : new DirectoryEntry(featurePath, _options.Username, _options.Password, authType);
+
+            using var searcher = new DirectorySearcher(featureEntry)
+            {
+                Filter = "(objectClass=*)",
+                SearchScope = SearchScope.Base,
+                ReferralChasing = ReferralChasingOption.None
+            };
+            searcher.PropertiesToLoad.Add("msDS-EnabledFeatureBL");
+
+            SearchResult? result;
+            try
+            {
+                result = searcher.FindOne();
+            }
+            catch (System.Runtime.InteropServices.COMException)
+            {
+                // Feature nesnesi hiç yok - forest'ta Recycle Bin hiçbir zaman
+                // etkinleştirilmemiş demektir. Bu, "veri okunamadı" değil, güvenilir/kesin
+                // bir "devre dışı" sonucudur.
+                return new List<ForestOptionalFeatureSettings> { new ForestOptionalFeatureSettings { IsRecycleBinEnabled = false } };
+            }
+
+            if (result == null)
+            {
+                return new List<ForestOptionalFeatureSettings> { new ForestOptionalFeatureSettings { IsRecycleBinEnabled = false } };
+            }
+
+            bool isEnabled = result.Properties.Contains("msDS-EnabledFeatureBL") && result.Properties["msDS-EnabledFeatureBL"].Count > 0;
+
+            return new List<ForestOptionalFeatureSettings> { new ForestOptionalFeatureSettings { IsRecycleBinEnabled = isEnabled } };
+        }
+
+        /// <summary>
+        /// Zaten şema+host+port içeren tam bir LDAP yolunu (ör. "LDAP://192.168.92.100:636/
+        /// DC=lab,DC=local") alıp, sonundaki DN kısmını verilen yeni DN ile değiştirir (ör.
+        /// "RootDSE" veya farklı bir konteynerin DN'i). ExtractBaseDn'in (LdapProtocolSecurityChecker)
+        /// tersi işlemi yapar - public/saf/I-O'suz olduğundan doğrudan birim testiyle
+        /// doğrulanabilir.
+        /// </summary>
+        public static string BuildPathWithDn(string formattedLdapPath, string dn)
+        {
+            int schemeEnd = formattedLdapPath.IndexOf("://", StringComparison.OrdinalIgnoreCase);
+            if (schemeEnd < 0) return formattedLdapPath;
+
+            int hostStart = schemeEnd + 3;
+            int slashIndex = formattedLdapPath.IndexOf('/', hostStart);
+            string hostPrefix = slashIndex < 0 ? formattedLdapPath : formattedLdapPath.Substring(0, slashIndex);
+
+            return hostPrefix + "/" + dn;
+        }
+
         // Domain'e özgü (domain SID + RID) beklenen DCSync sahipleri: 512=Domain Admins,
         // 519=Enterprise Admins (yalnızca forest root'ta anlamlı), 516=Domain Controllers
         // (normal DC'ler arası replikasyon için varsayılan), 498=Enterprise Read-only
@@ -441,12 +540,22 @@ namespace ADAssessment.Infrastructure.Ldap
                 MemberOfCount = result.Properties.Contains("memberOf") ? result.Properties["memberOf"].Count : 0,
                 ServicePrincipalNames = spnList,
                 IsCannotChangePassword = IsCannotChangePasswordViaAcl(result),
-                HasSidHistory = result.Properties.Contains("sIDHistory") && result.Properties["sIDHistory"].Count > 0
+                HasSidHistory = result.Properties.Contains("sIDHistory") && result.Properties["sIDHistory"].Count > 0,
+                SupportedEncryptionTypes = GetInt(result, "msDS-SupportedEncryptionTypes")
             };
         }
 
         private static AdComputerAccount MapToComputerAccount(SearchResult result)
         {
+            var delegateToList = new List<string>();
+            if (result.Properties.Contains("msDS-AllowedToDelegateTo"))
+            {
+                foreach (object spn in result.Properties["msDS-AllowedToDelegateTo"])
+                {
+                    if (spn != null) delegateToList.Add(spn.ToString()!);
+                }
+            }
+
             return new AdComputerAccount
             {
                 SamAccountName = GetString(result, "sAMAccountName"),
@@ -454,8 +563,51 @@ namespace ADAssessment.Infrastructure.Ldap
                 OperatingSystem = GetString(result, "operatingSystem"),
                 UserAccountControl = GetInt(result, "userAccountControl"),
                 PasswordLastSet = GetFileTimeAsDateTime(result, "pwdLastSet"),
-                LastLogonTimestamp = GetFileTimeAsDateTime(result, "lastLogonTimestamp")
+                LastLogonTimestamp = GetFileTimeAsDateTime(result, "lastLogonTimestamp"),
+                ResourceBasedConstrainedDelegationPrincipals = ParseRbcdPrincipals(result),
+                AllowedToDelegateTo = delegateToList
             };
+        }
+
+        /// <summary>
+        /// msDS-AllowedToActOnBehalfOfOtherIdentity özniteliğini (RBCD - Resource-Based
+        /// Constrained Delegation) ayrıştırır. Bu öznitelik, nesnenin KENDİ ACL'i değil, ham
+        /// bir güvenlik tanımlayıcısı (security descriptor) TAŞIYAN bir öznitelik DEĞERİDİR -
+        /// bu yüzden SecurityMasks.Dacl (nesnenin kendi nTSecurityDescriptor'ı için gereken
+        /// bayrak) gerektirmez, normal bir öznitelik gibi PropertiesToLoad'a eklenmesi yeterli.
+        /// ACE'ler burada ObjectAce (AD-008/AD-023'teki gibi belirli bir kontrol erişim hakkı
+        /// GUID'ine bağlı) değil, düz CommonAce'dir - RBCD basitçe "bu SID'ler kimlik
+        /// doğrulayabilir" der, belirli bir hakka bağlı değildir.
+        /// </summary>
+        private static IReadOnlyList<string> ParseRbcdPrincipals(SearchResult result)
+        {
+            if (!result.Properties.Contains("msDS-AllowedToActOnBehalfOfOtherIdentity") || result.Properties["msDS-AllowedToActOnBehalfOfOtherIdentity"].Count == 0)
+            {
+                return Array.Empty<string>();
+            }
+
+            try
+            {
+                var sdBytes = (byte[])result.Properties["msDS-AllowedToActOnBehalfOfOtherIdentity"][0];
+                var rawSecurityDescriptor = new RawSecurityDescriptor(sdBytes, 0);
+                RawAcl? dacl = rawSecurityDescriptor.DiscretionaryAcl;
+                if (dacl == null) return Array.Empty<string>();
+
+                var principals = new List<string>();
+                foreach (GenericAce ace in dacl)
+                {
+                    if (ace is not CommonAce commonAce) continue;
+                    if (commonAce.AceType != AceType.AccessAllowed) continue;
+                    principals.Add(ResolvePrincipalName(commonAce.SecurityIdentifier.Value));
+                }
+                return principals;
+            }
+            catch
+            {
+                // ACL ayrıştırılamazsa güvenli tarafta kalınır: hiçbir RBCD prensibi
+                // raporlanmaz (AD-008/AD-023'teki aynı savunmacı yaklaşım).
+                return Array.Empty<string>();
+            }
         }
 
         /// <summary>

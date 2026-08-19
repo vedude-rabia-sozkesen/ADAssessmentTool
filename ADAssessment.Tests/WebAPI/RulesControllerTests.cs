@@ -40,7 +40,8 @@ namespace ADAssessment.Tests.WebAPI
                 Array.Empty<ILdapProtocolComplianceRule>(),
                 Array.Empty<ISmbProtocolComplianceRule>(),
                 Array.Empty<IDcSyncComplianceRule>(),
-                Array.Empty<IDomainFunctionalLevelComplianceRule>());
+                Array.Empty<IDomainFunctionalLevelComplianceRule>(),
+                Array.Empty<IForestComplianceRule>());
         }
 
         private static JsonRuleDefinition SimpleDefinition(string ruleId) => new JsonRuleDefinition

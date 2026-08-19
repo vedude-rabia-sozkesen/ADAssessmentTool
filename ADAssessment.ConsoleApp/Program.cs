@@ -129,6 +129,20 @@ namespace ADAssessment.ConsoleApp
                     Console.WriteLine($"[-] [FONKSİYONEL SEVİYE UYARISI] Domain fonksiyonel seviyesi kontrol edilemedi ({functionalLevelEx.Message}). İlgili kurallar bu taramada atlanacak.\n");
                 }
 
+                // Forest Seviyesi Özellik Kontrolü (AD Recycle Bin) - RootDSE + Configuration
+                // NC okuyan ayrı bir sorgu, aynı sebeple izole edilir.
+                ForestOptionalFeatureSettings? forestFeatures = null;
+                try
+                {
+                    Console.WriteLine("[*] Forest seviyesi özellikler (AD Recycle Bin) kontrol ediliyor...");
+                    forestFeatures = extractor.GetForestOptionalFeatures();
+                    Console.WriteLine("[+] Forest seviyesi özellik kontrolü tamamlandı.\n");
+                }
+                catch (Exception forestEx)
+                {
+                    Console.WriteLine($"[-] [FOREST UYARISI] Forest seviyesi özellikler kontrol edilemedi ({forestEx.Message}). İlgili kurallar bu taramada atlanacak.\n");
+                }
+
                 // 2. Kuralların Tanımlanması ve Çalıştırılması
                 Console.WriteLine("[*] Güvenlik analizleri başlatılıyor...\n");
 
@@ -144,7 +158,9 @@ namespace ADAssessment.ConsoleApp
                     new CannotChangePasswordRule(),     // AD-008
                     new ReversibleEncryptionRule(),     // AD-009
                     new DesEncryptionAllowedRule(),     // AD-010
-                    new SidHistoryPresentRule()         // AD-025
+                    new SidHistoryPresentRule(),        // AD-025
+                    new KrbtgtPasswordAgeRule(),        // AD-027
+                    new AesEncryptionNotSupportedRule() // AD-030
                 };
 
                 // No-Code JSON Kural Deposundan Dinamik Kuralları Yükleme (No-Code Rule Engine)
@@ -164,7 +180,9 @@ namespace ADAssessment.ConsoleApp
                     new StaleComputerAccountsRule(),      // AD-016
                     new ObsoleteOperatingSystemRule(),    // AD-017
                     new StaleComputerPasswordRule(),       // AD-018
-                    new ComputerUnconstrainedDelegationRule() // AD-024
+                    new ComputerUnconstrainedDelegationRule(),               // AD-024
+                    new UnexpectedResourceBasedConstrainedDelegationRule(),  // AD-028
+                    new ProtocolTransitionDelegationRule()                   // AD-029
                 };
 
                 var ldapProtocolRules = new List<ILdapProtocolComplianceRule>
@@ -187,6 +205,11 @@ namespace ADAssessment.ConsoleApp
                 var domainFunctionalLevelRules = new List<IDomainFunctionalLevelComplianceRule>
                 {
                     new ObsoleteDomainFunctionalLevelRule()   // AD-026
+                };
+
+                var forestRules = new List<IForestComplianceRule>
+                {
+                    new RecycleBinNotEnabledRule()            // AD-031
                 };
 
                 var results = new List<RuleResult>();
@@ -232,6 +255,7 @@ namespace ADAssessment.ConsoleApp
                 smbProtocolRules = smbProtocolRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
                 dcSyncRules = dcSyncRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
                 domainFunctionalLevelRules = domainFunctionalLevelRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
+                forestRules = forestRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
 
                 foreach (var rule in rules)
                 {
@@ -266,6 +290,11 @@ namespace ADAssessment.ConsoleApp
                 foreach (var rule in domainFunctionalLevelRules)
                 {
                     PrintAndCollect(rule, rule.Execute(domainFunctionalLevel!));
+                }
+
+                foreach (var rule in forestRules)
+                {
+                    PrintAndCollect(rule, rule.Execute(forestFeatures!));
                 }
 
                 // 3. Denetim İzleme (Audit Logging) Kaydı

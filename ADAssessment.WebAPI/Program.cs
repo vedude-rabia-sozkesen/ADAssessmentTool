@@ -110,6 +110,8 @@ builder.Services.AddTransient<IComplianceRule, CannotChangePasswordRule>();
 builder.Services.AddTransient<IComplianceRule, ReversibleEncryptionRule>();
 builder.Services.AddTransient<IComplianceRule, DesEncryptionAllowedRule>();
 builder.Services.AddTransient<IComplianceRule, SidHistoryPresentRule>();
+builder.Services.AddTransient<IComplianceRule, KrbtgtPasswordAgeRule>();
+builder.Services.AddTransient<IComplianceRule, AesEncryptionNotSupportedRule>();
 
 // SYSVOL/GPO Tabanlı Uyum Kurallarını DI'a Kaydet
 builder.Services.AddTransient<IGroupPolicyComplianceRule, WeakPasswordPolicyRule>();
@@ -121,6 +123,8 @@ builder.Services.AddTransient<IComputerComplianceRule, StaleComputerAccountsRule
 builder.Services.AddTransient<IComputerComplianceRule, ObsoleteOperatingSystemRule>();
 builder.Services.AddTransient<IComputerComplianceRule, StaleComputerPasswordRule>();
 builder.Services.AddTransient<IComputerComplianceRule, ComputerUnconstrainedDelegationRule>();
+builder.Services.AddTransient<IComputerComplianceRule, UnexpectedResourceBasedConstrainedDelegationRule>();
+builder.Services.AddTransient<IComputerComplianceRule, ProtocolTransitionDelegationRule>();
 
 // LDAP Protokol Güvenliği Tabanlı Uyum Kurallarını DI'a Kaydet
 builder.Services.AddTransient<ILdapProtocolComplianceRule, LdapSigningNotEnforcedRule>();
@@ -135,6 +139,9 @@ builder.Services.AddTransient<IDcSyncComplianceRule, UnexpectedDcSyncRightsRule>
 
 // Domain Fonksiyonel Seviyesi Tabanlı Uyum Kurallarını DI'a Kaydet
 builder.Services.AddTransient<IDomainFunctionalLevelComplianceRule, ObsoleteDomainFunctionalLevelRule>();
+
+// Forest Seviyesi Özellik Tabanlı Uyum Kurallarını DI'a Kaydet
+builder.Services.AddTransient<IForestComplianceRule, RecycleBinNotEnabledRule>();
 
 // 4. CORS Politikası — sadece appsettings.json > AllowedOrigins içinde açıkça
 // listelenen origin'lere izin verilir. Frontend zaten aynı origin'den (wwwroot)

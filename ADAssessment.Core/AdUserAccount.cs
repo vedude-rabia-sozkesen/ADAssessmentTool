@@ -56,6 +56,19 @@ namespace ADAssessment.Core
         /// (SID-History Injection, MITRE ATT&CK T1134.005) hem de unutulmuş göç artığı olabilir.
         public bool HasSidHistory { get; init; }
 
+        /// msDS-SupportedEncryptionTypes özniteliğinin ham (bitmask) değeri. Bit 0x8 =
+        /// AES128, bit 0x10 = AES256, bit 0x4 = RC4, bit 0x1/0x2 = DES (en zayıf, çoktan
+        /// kırık kabul edilir). Bu öznitelik açıkça set edilmemişse (0) hesap DC'nin kendi
+        /// varsayılanına tabidir - bu durumu (çok yaygın/gürültülü olduğundan) ayrı ele
+        /// almak için IsAesUnsupported SADECE öznitelik açıkça set edilmiş ama AES
+        /// bitlerini içermiyorsa true döner.
+        public int SupportedEncryptionTypes { get; init; }
+
+        /// Hesap için AES Kerberos şifrelemesi açıkça devre dışı/desteklenmiyor mu?
+        /// Sadece RC4/DES destekleyen bir hesabın Kerberoasting ile elde edilen hash'i,
+        /// AES ile korunan bir hesaba göre çok daha hızlı kırılabilir.
+        public bool IsAesUnsupported => SupportedEncryptionTypes != 0 && (SupportedEncryptionTypes & 0x18) == 0;
+
         /// "Kullanıcı parolasını değiştiremez" kısıtlaması. DİKKAT: UserAccountControl'deki
         /// PASSWD_CANT_CHG (0x40) bayrağı modern Active Directory'de bu ayarı YANSITMAZ —
         /// gerçek uygulama nesnenin ACL'inde (Everyone/SELF için Change-Password özel hakkının

@@ -32,6 +32,7 @@ namespace ADAssessment.WebAPI.Controllers
         private readonly IEnumerable<ISmbProtocolComplianceRule> _smbProtocolRules;
         private readonly IEnumerable<IDcSyncComplianceRule> _dcSyncRules;
         private readonly IEnumerable<IDomainFunctionalLevelComplianceRule> _domainFunctionalLevelRules;
+        private readonly IEnumerable<IForestComplianceRule> _forestRules;
         private readonly JsonRuleRepository _jsonRepository;
         private readonly IAuditLogger _auditLogger;
         private readonly ILogger<AssessmentController> _logger;
@@ -48,6 +49,7 @@ namespace ADAssessment.WebAPI.Controllers
             IEnumerable<ISmbProtocolComplianceRule> smbProtocolRules,
             IEnumerable<IDcSyncComplianceRule> dcSyncRules,
             IEnumerable<IDomainFunctionalLevelComplianceRule> domainFunctionalLevelRules,
+            IEnumerable<IForestComplianceRule> forestRules,
             JsonRuleRepository jsonRepository,
             IAuditLogger auditLogger,
             ILogger<AssessmentController> logger)
@@ -63,6 +65,7 @@ namespace ADAssessment.WebAPI.Controllers
             _smbProtocolRules = smbProtocolRules;
             _dcSyncRules = dcSyncRules;
             _domainFunctionalLevelRules = domainFunctionalLevelRules;
+            _forestRules = forestRules;
             _jsonRepository = jsonRepository;
             _auditLogger = auditLogger;
             _logger = logger;
@@ -188,6 +191,18 @@ namespace ADAssessment.WebAPI.Controllers
                 _logger.LogWarning(functionalLevelEx, "Domain fonksiyonel seviyesi kontrol edilemedi, ilgili kurallar bu taramada atlandı.");
             }
 
+            // Forest seviyesi isteğe bağlı özellik kontrolü (AD Recycle Bin) de RootDSE +
+            // Configuration NC okuyan ayrı bir sorgu olduğundan, aynı sebeple izole edilir.
+            ForestOptionalFeatureSettings? forestFeatures = null;
+            try
+            {
+                forestFeatures = _extractor.GetForestOptionalFeatures();
+            }
+            catch (Exception forestEx)
+            {
+                _logger.LogWarning(forestEx, "Forest seviyesi özellikler kontrol edilemedi, ilgili kurallar bu taramada atlandı.");
+            }
+
             var rules = new List<IComplianceRule>(_staticRules);
             var dynamicRules = _jsonRepository.LoadRules();
             rules.AddRange(dynamicRules);
@@ -229,7 +244,12 @@ namespace ADAssessment.WebAPI.Controllers
                 results.Add(rule.Execute(domainFunctionalLevel!));
             }
 
-            int totalRulesExecuted = rules.Count + _groupPolicyRules.Count() + _computerRules.Count() + _ldapProtocolRules.Count() + _smbProtocolRules.Count() + _dcSyncRules.Count() + _domainFunctionalLevelRules.Count();
+            foreach (var rule in _forestRules)
+            {
+                results.Add(rule.Execute(forestFeatures!));
+            }
+
+            int totalRulesExecuted = rules.Count + _groupPolicyRules.Count() + _computerRules.Count() + _ldapProtocolRules.Count() + _smbProtocolRules.Count() + _dcSyncRules.Count() + _domainFunctionalLevelRules.Count() + _forestRules.Count();
 
             string initiator = User.Identity?.Name ?? "WebAPI_User";
             _auditLogger.LogAssessment(initiator, users.Count, results);
@@ -250,6 +270,7 @@ namespace ADAssessment.WebAPI.Controllers
                 .Concat(_smbProtocolRules)
                 .Concat(_dcSyncRules)
                 .Concat(_domainFunctionalLevelRules)
+                .Concat(_forestRules)
                 .GroupBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
