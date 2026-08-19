@@ -54,7 +54,8 @@ namespace ADAssessment.Infrastructure.Ldap
             "adminCount",
             "memberOf",
             "servicePrincipalName",
-            "nTSecurityDescriptor"
+            "nTSecurityDescriptor",
+            "sIDHistory"
         };
 
         private static readonly string[] ComputerProperties =
@@ -221,6 +222,64 @@ namespace ADAssessment.Infrastructure.Ldap
             };
         }
 
+        /// <summary>
+        /// Domain kök nesnesinin msDS-Behavior-Version özniteliğini (Domain Fonksiyonel
+        /// Seviyesi) okur. DCSync sorgusuyla (GetDcSyncRights) aynı nesneyi (domain kökü)
+        /// hedefler ama farklı bir özniteliği okuduğundan ve tamamen bağımsız bir bulguya
+        /// (eskimiş fonksiyonel seviye vs. beklenmeyen replikasyon hakkı) hizmet ettiğinden
+        /// ayrı bir metod olarak tutulur - tek bir nesnenin tekrar okunması (küçük, Base-scope
+        /// bir sorgu) ihmal edilebilir bir maliyettir.
+        /// </summary>
+        public DomainFunctionalLevelSettings GetDomainFunctionalLevel()
+        {
+            var results = ExecuteWithLdapsFallback<DomainFunctionalLevelSettings>(
+                (path, useLdaps) => QueryDomainFunctionalLevel(path, useLdaps));
+
+            return results.Count > 0 ? results[0] : new DomainFunctionalLevelSettings();
+        }
+
+        private IReadOnlyList<DomainFunctionalLevelSettings> QueryDomainFunctionalLevel(string path, bool useLdaps)
+        {
+            var authType = AuthenticationTypes.Secure;
+            authType |= useLdaps ? AuthenticationTypes.SecureSocketsLayer : AuthenticationTypes.Sealing;
+
+            using var rootEntry = string.IsNullOrEmpty(_options.Username)
+                ? new DirectoryEntry(path) { AuthenticationType = authType }
+                : new DirectoryEntry(path, _options.Username, _options.Password, authType);
+
+            using var searcher = new DirectorySearcher(rootEntry)
+            {
+                Filter = "(objectClass=*)",
+                SearchScope = SearchScope.Base,
+                ReferralChasing = ReferralChasingOption.None
+            };
+            searcher.PropertiesToLoad.Add("msDS-Behavior-Version");
+            searcher.PropertiesToLoad.Add("distinguishedName");
+
+            SearchResult? result = searcher.FindOne();
+            if (result == null)
+            {
+                return Array.Empty<DomainFunctionalLevelSettings>();
+            }
+
+            // GetInt (diğer sorgularda kullanılan paylaşımlı yardımcı) öznitelik eksikse 0
+            // döner - burada bu YANLIŞ olur, çünkü ham msDS-Behavior-Version değeri 0 zaten
+            // geçerli/gerçek bir seviyeyi (Windows2000Domain) ifade eder. Öznitelik gerçekten
+            // eksikse (beklenmez ama savunmacı olmak gerekir) -1 (Informational, "veri yok")
+            // ile karıştırılmaması için burada özel olarak ayrıştırılır.
+            bool hasLevel = result.Properties.Contains("msDS-Behavior-Version") && result.Properties["msDS-Behavior-Version"].Count > 0;
+            int functionalLevel = hasLevel ? Convert.ToInt32(result.Properties["msDS-Behavior-Version"][0]) : -1;
+
+            return new List<DomainFunctionalLevelSettings>
+            {
+                new DomainFunctionalLevelSettings
+                {
+                    DomainDistinguishedName = GetString(result, "distinguishedName"),
+                    FunctionalLevel = functionalLevel
+                }
+            };
+        }
+
         // Domain'e özgü (domain SID + RID) beklenen DCSync sahipleri: 512=Domain Admins,
         // 519=Enterprise Admins (yalnızca forest root'ta anlamlı), 516=Domain Controllers
         // (normal DC'ler arası replikasyon için varsayılan), 498=Enterprise Read-only
@@ -381,7 +440,8 @@ namespace ADAssessment.Infrastructure.Ldap
                 IsAdminCountSet = GetInt(result, "adminCount") == 1,
                 MemberOfCount = result.Properties.Contains("memberOf") ? result.Properties["memberOf"].Count : 0,
                 ServicePrincipalNames = spnList,
-                IsCannotChangePassword = IsCannotChangePasswordViaAcl(result)
+                IsCannotChangePassword = IsCannotChangePasswordViaAcl(result),
+                HasSidHistory = result.Properties.Contains("sIDHistory") && result.Properties["sIDHistory"].Count > 0
             };
         }
 

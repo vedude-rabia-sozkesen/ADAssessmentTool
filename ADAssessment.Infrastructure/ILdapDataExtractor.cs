@@ -15,5 +15,7 @@ namespace ADAssessment.Infrastructure.Ldap
         IReadOnlyList<AdComputerAccount> GetComputerAccounts();
 
         DcSyncRightsSettings GetDcSyncRights();
+
+        DomainFunctionalLevelSettings GetDomainFunctionalLevel();
     }
 }

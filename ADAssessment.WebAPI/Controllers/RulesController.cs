@@ -31,13 +31,14 @@ namespace ADAssessment.WebAPI.Controllers
             IEnumerable<IComputerComplianceRule> computerRules,
             IEnumerable<ILdapProtocolComplianceRule> ldapProtocolRules,
             IEnumerable<ISmbProtocolComplianceRule> smbProtocolRules,
-            IEnumerable<IDcSyncComplianceRule> dcSyncRules)
+            IEnumerable<IDcSyncComplianceRule> dcSyncRules,
+            IEnumerable<IDomainFunctionalLevelComplianceRule> domainFunctionalLevelRules)
         {
             _jsonRepository = jsonRepository;
-            // GPO, bilgisayar, LDAP/SMB protokol ve DCSync tabanlı kurallar da derlenmiş
-            // kod olduğundan (Source="Static") aynı listeye dahil edilir - hepsi zaten
-            // IComplianceRule olduğundan cast'e gerek kalmaz.
-            _staticRules = staticRules.Concat(groupPolicyRules).Concat(computerRules).Concat(ldapProtocolRules).Concat(smbProtocolRules).Concat(dcSyncRules).ToList();
+            // GPO, bilgisayar, LDAP/SMB protokol, DCSync ve domain fonksiyonel seviyesi
+            // tabanlı kurallar da derlenmiş kod olduğundan (Source="Static") aynı listeye
+            // dahil edilir - hepsi zaten IComplianceRule olduğundan cast'e gerek kalmaz.
+            _staticRules = staticRules.Concat(groupPolicyRules).Concat(computerRules).Concat(ldapProtocolRules).Concat(smbProtocolRules).Concat(dcSyncRules).Concat(domainFunctionalLevelRules).ToList();
         }
 
         [HttpGet]

@@ -31,6 +31,7 @@ namespace ADAssessment.WebAPI.Controllers
         private readonly IEnumerable<ILdapProtocolComplianceRule> _ldapProtocolRules;
         private readonly IEnumerable<ISmbProtocolComplianceRule> _smbProtocolRules;
         private readonly IEnumerable<IDcSyncComplianceRule> _dcSyncRules;
+        private readonly IEnumerable<IDomainFunctionalLevelComplianceRule> _domainFunctionalLevelRules;
         private readonly JsonRuleRepository _jsonRepository;
         private readonly IAuditLogger _auditLogger;
         private readonly ILogger<AssessmentController> _logger;
@@ -46,6 +47,7 @@ namespace ADAssessment.WebAPI.Controllers
             IEnumerable<ILdapProtocolComplianceRule> ldapProtocolRules,
             IEnumerable<ISmbProtocolComplianceRule> smbProtocolRules,
             IEnumerable<IDcSyncComplianceRule> dcSyncRules,
+            IEnumerable<IDomainFunctionalLevelComplianceRule> domainFunctionalLevelRules,
             JsonRuleRepository jsonRepository,
             IAuditLogger auditLogger,
             ILogger<AssessmentController> logger)
@@ -60,6 +62,7 @@ namespace ADAssessment.WebAPI.Controllers
             _ldapProtocolRules = ldapProtocolRules;
             _smbProtocolRules = smbProtocolRules;
             _dcSyncRules = dcSyncRules;
+            _domainFunctionalLevelRules = domainFunctionalLevelRules;
             _jsonRepository = jsonRepository;
             _auditLogger = auditLogger;
             _logger = logger;
@@ -173,6 +176,18 @@ namespace ADAssessment.WebAPI.Controllers
                 _logger.LogWarning(dcSyncEx, "DCSync hakları kontrol edilemedi, ilgili kurallar bu taramada atlandı.");
             }
 
+            // Domain fonksiyonel seviyesi kontrolü de domain kökünü okuyan ayrı bir sorgu
+            // olduğundan, aynı sebeple izole edilir.
+            DomainFunctionalLevelSettings? domainFunctionalLevel = null;
+            try
+            {
+                domainFunctionalLevel = _extractor.GetDomainFunctionalLevel();
+            }
+            catch (Exception functionalLevelEx)
+            {
+                _logger.LogWarning(functionalLevelEx, "Domain fonksiyonel seviyesi kontrol edilemedi, ilgili kurallar bu taramada atlandı.");
+            }
+
             var rules = new List<IComplianceRule>(_staticRules);
             var dynamicRules = _jsonRepository.LoadRules();
             rules.AddRange(dynamicRules);
@@ -209,7 +224,12 @@ namespace ADAssessment.WebAPI.Controllers
                 results.Add(rule.Execute(dcSyncRights!));
             }
 
-            int totalRulesExecuted = rules.Count + _groupPolicyRules.Count() + _computerRules.Count() + _ldapProtocolRules.Count() + _smbProtocolRules.Count() + _dcSyncRules.Count();
+            foreach (var rule in _domainFunctionalLevelRules)
+            {
+                results.Add(rule.Execute(domainFunctionalLevel!));
+            }
+
+            int totalRulesExecuted = rules.Count + _groupPolicyRules.Count() + _computerRules.Count() + _ldapProtocolRules.Count() + _smbProtocolRules.Count() + _dcSyncRules.Count() + _domainFunctionalLevelRules.Count();
 
             string initiator = User.Identity?.Name ?? "WebAPI_User";
             _auditLogger.LogAssessment(initiator, users.Count, results);
@@ -229,6 +249,7 @@ namespace ADAssessment.WebAPI.Controllers
                 .Concat(_ldapProtocolRules)
                 .Concat(_smbProtocolRules)
                 .Concat(_dcSyncRules)
+                .Concat(_domainFunctionalLevelRules)
                 .GroupBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 

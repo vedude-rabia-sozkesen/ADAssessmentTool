@@ -25,5 +25,17 @@ namespace ADAssessment.Core
 
         /// UserAccountControl bit 2 (0x2) = ACCOUNTDISABLE bayrağını kontrol eder.
         public bool IsEnabled => (UserAccountControl & 0x2) == 0;
+
+        /// UserAccountControl bit 19 (0x80000) = TRUSTED_FOR_DELEGATION bayrağını kontrol eder.
+        /// AdUserAccount'taki karşılığıyla aynı bit - UAC bayrakları nesne tipinden (kullanıcı/
+        /// bilgisayar) bağımsızdır.
+        public bool IsUnconstrainedDelegation => (UserAccountControl & 0x80000) != 0;
+
+        /// UserAccountControl bit 13 (0x2000) = SERVER_TRUST_ACCOUNT bayrağını kontrol eder.
+        /// Bu bit sadece Domain Controller bilgisayar hesaplarında set edilir; bir DC'nin
+        /// sınırsız delegasyona sahip olması tasarım gereği beklenen/normal bir durumdur
+        /// (DC'ler arası bazı Kerberos işlemleri bunu gerektirir) - bu yüzden delegasyon
+        /// kuralında DC'leri elemek (false positive önlemek) için kullanılır.
+        public bool IsDomainController => (UserAccountControl & 0x2000) != 0;
     }
 }

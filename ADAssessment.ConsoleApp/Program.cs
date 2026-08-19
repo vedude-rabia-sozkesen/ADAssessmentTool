@@ -115,6 +115,20 @@ namespace ADAssessment.ConsoleApp
                     Console.WriteLine($"[-] [DCSYNC UYARISI] DCSync hakları kontrol edilemedi ({dcSyncEx.Message}). İlgili kurallar bu taramada atlanacak.\n");
                 }
 
+                // Domain Fonksiyonel Seviyesi Kontrolü - domain kökünü okuyan ayrı bir
+                // sorgu, aynı sebeple izole edilir.
+                DomainFunctionalLevelSettings? domainFunctionalLevel = null;
+                try
+                {
+                    Console.WriteLine("[*] Domain fonksiyonel seviyesi kontrol ediliyor...");
+                    domainFunctionalLevel = extractor.GetDomainFunctionalLevel();
+                    Console.WriteLine("[+] Domain fonksiyonel seviyesi kontrolü tamamlandı.\n");
+                }
+                catch (Exception functionalLevelEx)
+                {
+                    Console.WriteLine($"[-] [FONKSİYONEL SEVİYE UYARISI] Domain fonksiyonel seviyesi kontrol edilemedi ({functionalLevelEx.Message}). İlgili kurallar bu taramada atlanacak.\n");
+                }
+
                 // 2. Kuralların Tanımlanması ve Çalıştırılması
                 Console.WriteLine("[*] Güvenlik analizleri başlatılıyor...\n");
 
@@ -129,7 +143,8 @@ namespace ADAssessment.ConsoleApp
                     new StalePasswordRule(),            // AD-007
                     new CannotChangePasswordRule(),     // AD-008
                     new ReversibleEncryptionRule(),     // AD-009
-                    new DesEncryptionAllowedRule()      // AD-010
+                    new DesEncryptionAllowedRule(),     // AD-010
+                    new SidHistoryPresentRule()         // AD-025
                 };
 
                 // No-Code JSON Kural Deposundan Dinamik Kuralları Yükleme (No-Code Rule Engine)
@@ -148,7 +163,8 @@ namespace ADAssessment.ConsoleApp
                 {
                     new StaleComputerAccountsRule(),      // AD-016
                     new ObsoleteOperatingSystemRule(),    // AD-017
-                    new StaleComputerPasswordRule()        // AD-018
+                    new StaleComputerPasswordRule(),       // AD-018
+                    new ComputerUnconstrainedDelegationRule() // AD-024
                 };
 
                 var ldapProtocolRules = new List<ILdapProtocolComplianceRule>
@@ -166,6 +182,11 @@ namespace ADAssessment.ConsoleApp
                 var dcSyncRules = new List<IDcSyncComplianceRule>
                 {
                     new UnexpectedDcSyncRightsRule()          // AD-023
+                };
+
+                var domainFunctionalLevelRules = new List<IDomainFunctionalLevelComplianceRule>
+                {
+                    new ObsoleteDomainFunctionalLevelRule()   // AD-026
                 };
 
                 var results = new List<RuleResult>();
@@ -210,6 +231,7 @@ namespace ADAssessment.ConsoleApp
                 ldapProtocolRules = ldapProtocolRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
                 smbProtocolRules = smbProtocolRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
                 dcSyncRules = dcSyncRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
+                domainFunctionalLevelRules = domainFunctionalLevelRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
 
                 foreach (var rule in rules)
                 {
@@ -239,6 +261,11 @@ namespace ADAssessment.ConsoleApp
                 foreach (var rule in dcSyncRules)
                 {
                     PrintAndCollect(rule, rule.Execute(dcSyncRights!));
+                }
+
+                foreach (var rule in domainFunctionalLevelRules)
+                {
+                    PrintAndCollect(rule, rule.Execute(domainFunctionalLevel!));
                 }
 
                 // 3. Denetim İzleme (Audit Logging) Kaydı

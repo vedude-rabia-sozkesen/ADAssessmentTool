@@ -36,6 +36,9 @@ namespace ADAssessment.Tests.Core
             new AnonymousLdapBindAllowedRule(),
             new AnonymousSmbAccessAllowedRule(),
             new UnexpectedDcSyncRightsRule(),
+            new ComputerUnconstrainedDelegationRule(),
+            new SidHistoryPresentRule(),
+            new ObsoleteDomainFunctionalLevelRule(),
         };
 
         [Theory]

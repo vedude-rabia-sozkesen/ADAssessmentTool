@@ -48,6 +48,14 @@ namespace ADAssessment.Core
         /// UserAccountControl bit 19 (0x80000) = TRUSTED_FOR_DELEGATION bayrağını kontrol eder.
         public bool IsUnconstrainedDelegation => (UserAccountControl & 0x80000) != 0;
 
+        /// sIDHistory özniteliğinde en az bir değer olup olmadığı. Bu öznitelik normalde
+        /// sadece bir hesap başka bir domain'den GÖÇ ETTİRİLDİĞİNDE (domain migration)
+        /// dolar - eski domain'deki SID'i, hesabın yeni domain'deki eski kaynaklara erişimini
+        /// kesintisiz sürdürebilmesi için burada saklanır. Göç tamamlandıktan sonra temizlenmesi
+        /// beklenir; temizlenmeden kalması hem bir persistence/privilege-escalation tekniği
+        /// (SID-History Injection, MITRE ATT&CK T1134.005) hem de unutulmuş göç artığı olabilir.
+        public bool HasSidHistory { get; init; }
+
         /// "Kullanıcı parolasını değiştiremez" kısıtlaması. DİKKAT: UserAccountControl'deki
         /// PASSWD_CANT_CHG (0x40) bayrağı modern Active Directory'de bu ayarı YANSITMAZ —
         /// gerçek uygulama nesnenin ACL'inde (Everyone/SELF için Change-Password özel hakkının
