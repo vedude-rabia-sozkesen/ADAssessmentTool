@@ -34,6 +34,7 @@ namespace ADAssessment.Tests.Core
             new LdapSigningNotEnforcedRule(),
             new LdapChannelBindingNotEnforcedRule(),
             new AnonymousLdapBindAllowedRule(),
+            new AnonymousSmbAccessAllowedRule(),
         };
 
         [Theory]

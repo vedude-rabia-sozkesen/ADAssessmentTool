@@ -5,6 +5,7 @@ using ADAssessment.Core;
 using ADAssessment.Infrastructure.Configuration;
 using ADAssessment.Infrastructure.Ldap;
 using ADAssessment.Infrastructure.Logging;
+using ADAssessment.Infrastructure.Smb;
 using ADAssessment.Infrastructure.Sysvol;
 
 namespace ADAssessment.ConsoleApp
@@ -86,6 +87,20 @@ namespace ADAssessment.ConsoleApp
                     Console.WriteLine($"[-] [LDAP PROTOKOL UYARISI] LDAP protokol güvenliği kontrol edilemedi ({ldapProtocolEx.Message}). İlgili kurallar bu taramada atlanacak.\n");
                 }
 
+                // SMB Protokol Güvenliği Kontrolü (anonim erişim vb.) - aynı sebeple izole edilir.
+                SmbProtocolSecuritySettings? smbProtocolSecurity = null;
+                try
+                {
+                    Console.WriteLine("[*] DC'nin SMB protokol güvenliği (anonim erişim) kontrol ediliyor...");
+                    var smbProtocolChecker = new SmbProtocolSecurityChecker(options);
+                    smbProtocolSecurity = smbProtocolChecker.CheckAnonymousAccess();
+                    Console.WriteLine("[+] SMB protokol güvenliği kontrolü tamamlandı.\n");
+                }
+                catch (Exception smbProtocolEx)
+                {
+                    Console.WriteLine($"[-] [SMB PROTOKOL UYARISI] SMB protokol güvenliği kontrol edilemedi ({smbProtocolEx.Message}). İlgili kurallar bu taramada atlanacak.\n");
+                }
+
                 // 2. Kuralların Tanımlanması ve Çalıştırılması
                 Console.WriteLine("[*] Güvenlik analizleri başlatılıyor...\n");
 
@@ -129,6 +144,11 @@ namespace ADAssessment.ConsoleApp
                     new AnonymousLdapBindAllowedRule()        // AD-021
                 };
 
+                var smbProtocolRules = new List<ISmbProtocolComplianceRule>
+                {
+                    new AnonymousSmbAccessAllowedRule()       // AD-022
+                };
+
                 var results = new List<RuleResult>();
 
                 void PrintAndCollect(IComplianceRule rule, RuleResult result)
@@ -169,6 +189,7 @@ namespace ADAssessment.ConsoleApp
                 groupPolicyRules = groupPolicyRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
                 computerRules = computerRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
                 ldapProtocolRules = ldapProtocolRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
+                smbProtocolRules = smbProtocolRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
 
                 foreach (var rule in rules)
                 {
@@ -188,6 +209,11 @@ namespace ADAssessment.ConsoleApp
                 foreach (var rule in ldapProtocolRules)
                 {
                     PrintAndCollect(rule, rule.Execute(ldapProtocolSecurity!));
+                }
+
+                foreach (var rule in smbProtocolRules)
+                {
+                    PrintAndCollect(rule, rule.Execute(smbProtocolSecurity!));
                 }
 
                 // 3. Denetim İzleme (Audit Logging) Kaydı

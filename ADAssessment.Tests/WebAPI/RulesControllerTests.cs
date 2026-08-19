@@ -37,7 +37,8 @@ namespace ADAssessment.Tests.WebAPI
                 staticRules ?? Array.Empty<IComplianceRule>(),
                 Array.Empty<IGroupPolicyComplianceRule>(),
                 Array.Empty<IComputerComplianceRule>(),
-                Array.Empty<ILdapProtocolComplianceRule>());
+                Array.Empty<ILdapProtocolComplianceRule>(),
+                Array.Empty<ISmbProtocolComplianceRule>());
         }
 
         private static JsonRuleDefinition SimpleDefinition(string ruleId) => new JsonRuleDefinition

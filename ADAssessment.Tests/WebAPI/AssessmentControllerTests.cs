@@ -37,16 +37,20 @@ namespace ADAssessment.Tests.WebAPI
             IEnumerable<IGroupPolicyComplianceRule>? groupPolicyRules = null,
             IEnumerable<IComputerComplianceRule>? computerRules = null,
             FakeLdapProtocolSecurityChecker? ldapProtocolChecker = null,
-            IEnumerable<ILdapProtocolComplianceRule>? ldapProtocolRules = null)
+            IEnumerable<ILdapProtocolComplianceRule>? ldapProtocolRules = null,
+            FakeSmbProtocolSecurityChecker? smbProtocolChecker = null,
+            IEnumerable<ISmbProtocolComplianceRule>? smbProtocolRules = null)
         {
             var controller = new AssessmentController(
                 extractor,
                 sysvolExtractor ?? FakeSysvolDataExtractor.Returning(Array.Empty<GroupPolicySecuritySettings>()),
                 ldapProtocolChecker ?? FakeLdapProtocolSecurityChecker.Returning(new LdapProtocolSecuritySettings()),
+                smbProtocolChecker ?? FakeSmbProtocolSecurityChecker.Returning(new SmbProtocolSecuritySettings()),
                 rules ?? Array.Empty<IComplianceRule>(),
                 groupPolicyRules ?? Array.Empty<IGroupPolicyComplianceRule>(),
                 computerRules ?? Array.Empty<IComputerComplianceRule>(),
                 ldapProtocolRules ?? Array.Empty<ILdapProtocolComplianceRule>(),
+                smbProtocolRules ?? Array.Empty<ISmbProtocolComplianceRule>(),
                 new JsonRuleRepository(_emptyRulesFolder),
                 auditLogger,
                 NullLogger<AssessmentController>.Instance);

@@ -9,6 +9,7 @@ using ADAssessment.Core;
 using ADAssessment.Infrastructure.Configuration;
 using ADAssessment.Infrastructure.Ldap;
 using ADAssessment.Infrastructure.Logging;
+using ADAssessment.Infrastructure.Smb;
 using ADAssessment.Infrastructure.Sysvol;
 using ADAssessment.WebAPI.Controllers;
 
@@ -88,6 +89,15 @@ builder.Services.AddScoped<ILdapProtocolSecurityChecker>(sp =>
     return new LdapProtocolSecurityChecker(options);
 });
 
+// SMB Protokol Güvenliği Denetleyicisi (anonim erişim vb.) - yine aynı bağlantı
+// bilgilerini yeniden kullanır.
+builder.Services.AddScoped<ISmbProtocolSecurityChecker>(sp =>
+{
+    var secretResolver = sp.GetRequiredService<ISecretResolver>();
+    var options = secretResolver.ResolveLdapOptions();
+    return new SmbProtocolSecurityChecker(options);
+});
+
 // Tüm Sabit C# Uyum Kurallarını DI'a Kaydet
 builder.Services.AddTransient<IComplianceRule, KerberoastingRule>();
 builder.Services.AddTransient<IComplianceRule, AsRepRoastingRule>();
@@ -114,6 +124,9 @@ builder.Services.AddTransient<IComputerComplianceRule, StaleComputerPasswordRule
 builder.Services.AddTransient<ILdapProtocolComplianceRule, LdapSigningNotEnforcedRule>();
 builder.Services.AddTransient<ILdapProtocolComplianceRule, LdapChannelBindingNotEnforcedRule>();
 builder.Services.AddTransient<ILdapProtocolComplianceRule, AnonymousLdapBindAllowedRule>();
+
+// SMB Protokol Güvenliği Tabanlı Uyum Kurallarını DI'a Kaydet
+builder.Services.AddTransient<ISmbProtocolComplianceRule, AnonymousSmbAccessAllowedRule>();
 
 // 4. CORS Politikası — sadece appsettings.json > AllowedOrigins içinde açıkça
 // listelenen origin'lere izin verilir. Frontend zaten aynı origin'den (wwwroot)

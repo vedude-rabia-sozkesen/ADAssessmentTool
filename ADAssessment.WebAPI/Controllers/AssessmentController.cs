@@ -7,6 +7,7 @@ using ADAssessment.Core;
 using ADAssessment.Infrastructure.Ldap;
 using ADAssessment.Infrastructure.Logging;
 using ADAssessment.Infrastructure.Configuration;
+using ADAssessment.Infrastructure.Smb;
 using ADAssessment.Infrastructure.Sysvol;
 using ADAssessment.WebAPI.Models;
 using ADAssessment.WebAPI.Reporting;
@@ -23,10 +24,12 @@ namespace ADAssessment.WebAPI.Controllers
         private readonly ILdapDataExtractor _extractor;
         private readonly ISysvolDataExtractor _sysvolExtractor;
         private readonly ILdapProtocolSecurityChecker _ldapProtocolChecker;
+        private readonly ISmbProtocolSecurityChecker _smbProtocolChecker;
         private readonly IEnumerable<IComplianceRule> _staticRules;
         private readonly IEnumerable<IGroupPolicyComplianceRule> _groupPolicyRules;
         private readonly IEnumerable<IComputerComplianceRule> _computerRules;
         private readonly IEnumerable<ILdapProtocolComplianceRule> _ldapProtocolRules;
+        private readonly IEnumerable<ISmbProtocolComplianceRule> _smbProtocolRules;
         private readonly JsonRuleRepository _jsonRepository;
         private readonly IAuditLogger _auditLogger;
         private readonly ILogger<AssessmentController> _logger;
@@ -35,10 +38,12 @@ namespace ADAssessment.WebAPI.Controllers
             ILdapDataExtractor extractor,
             ISysvolDataExtractor sysvolExtractor,
             ILdapProtocolSecurityChecker ldapProtocolChecker,
+            ISmbProtocolSecurityChecker smbProtocolChecker,
             IEnumerable<IComplianceRule> staticRules,
             IEnumerable<IGroupPolicyComplianceRule> groupPolicyRules,
             IEnumerable<IComputerComplianceRule> computerRules,
             IEnumerable<ILdapProtocolComplianceRule> ldapProtocolRules,
+            IEnumerable<ISmbProtocolComplianceRule> smbProtocolRules,
             JsonRuleRepository jsonRepository,
             IAuditLogger auditLogger,
             ILogger<AssessmentController> logger)
@@ -46,10 +51,12 @@ namespace ADAssessment.WebAPI.Controllers
             _extractor = extractor;
             _sysvolExtractor = sysvolExtractor;
             _ldapProtocolChecker = ldapProtocolChecker;
+            _smbProtocolChecker = smbProtocolChecker;
             _staticRules = staticRules;
             _groupPolicyRules = groupPolicyRules;
             _computerRules = computerRules;
             _ldapProtocolRules = ldapProtocolRules;
+            _smbProtocolRules = smbProtocolRules;
             _jsonRepository = jsonRepository;
             _auditLogger = auditLogger;
             _logger = logger;
@@ -139,6 +146,18 @@ namespace ADAssessment.WebAPI.Controllers
                 _logger.LogWarning(ldapProtocolEx, "LDAP protokol güvenliği kontrol edilemedi, ilgili kurallar bu taramada atlandı.");
             }
 
+            // SMB protokol güvenliği kontrolü de gerçek bir ağ bağlantısı denemesi
+            // içerdiğinden, aynı sebeple izole edilir.
+            SmbProtocolSecuritySettings? smbProtocolSecurity = null;
+            try
+            {
+                smbProtocolSecurity = _smbProtocolChecker.CheckAnonymousAccess();
+            }
+            catch (Exception smbProtocolEx)
+            {
+                _logger.LogWarning(smbProtocolEx, "SMB protokol güvenliği kontrol edilemedi, ilgili kurallar bu taramada atlandı.");
+            }
+
             var rules = new List<IComplianceRule>(_staticRules);
             var dynamicRules = _jsonRepository.LoadRules();
             rules.AddRange(dynamicRules);
@@ -165,7 +184,12 @@ namespace ADAssessment.WebAPI.Controllers
                 results.Add(rule.Execute(ldapProtocolSecurity!));
             }
 
-            int totalRulesExecuted = rules.Count + _groupPolicyRules.Count() + _computerRules.Count() + _ldapProtocolRules.Count();
+            foreach (var rule in _smbProtocolRules)
+            {
+                results.Add(rule.Execute(smbProtocolSecurity!));
+            }
+
+            int totalRulesExecuted = rules.Count + _groupPolicyRules.Count() + _computerRules.Count() + _ldapProtocolRules.Count() + _smbProtocolRules.Count();
 
             string initiator = User.Identity?.Name ?? "WebAPI_User";
             _auditLogger.LogAssessment(initiator, users.Count, results);
@@ -183,6 +207,7 @@ namespace ADAssessment.WebAPI.Controllers
                 .Concat(_groupPolicyRules)
                 .Concat(_computerRules)
                 .Concat(_ldapProtocolRules)
+                .Concat(_smbProtocolRules)
                 .GroupBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
