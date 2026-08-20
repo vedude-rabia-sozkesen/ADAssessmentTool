@@ -7,6 +7,7 @@ using ADAssessment.Core;
 using ADAssessment.Infrastructure.Ldap;
 using ADAssessment.Infrastructure.Logging;
 using ADAssessment.Infrastructure.Configuration;
+using ADAssessment.Infrastructure.Persistence;
 using ADAssessment.Infrastructure.Smb;
 using ADAssessment.Infrastructure.Sysvol;
 using ADAssessment.WebAPI.Models;
@@ -36,6 +37,7 @@ namespace ADAssessment.WebAPI.Controllers
         private readonly IEnumerable<ITrustComplianceRule> _trustRules;
         private readonly JsonRuleRepository _jsonRepository;
         private readonly IAuditLogger _auditLogger;
+        private readonly IScanHistoryRepository _scanHistoryRepository;
         private readonly ILogger<AssessmentController> _logger;
 
         public AssessmentController(
@@ -54,6 +56,7 @@ namespace ADAssessment.WebAPI.Controllers
             IEnumerable<ITrustComplianceRule> trustRules,
             JsonRuleRepository jsonRepository,
             IAuditLogger auditLogger,
+            IScanHistoryRepository scanHistoryRepository,
             ILogger<AssessmentController> logger)
         {
             _extractor = extractor;
@@ -71,6 +74,7 @@ namespace ADAssessment.WebAPI.Controllers
             _trustRules = trustRules;
             _jsonRepository = jsonRepository;
             _auditLogger = auditLogger;
+            _scanHistoryRepository = scanHistoryRepository;
             _logger = logger;
         }
 
@@ -324,6 +328,21 @@ namespace ADAssessment.WebAPI.Controllers
             };
 
             var score = SecurityScoreCalculator.Calculate(results);
+
+            // Tarama geçmişi kaydı, denetim izinden (audit log) bağımsız bir yazma işlemi -
+            // biri kurcalanamaz kanıt izi, diğeri aranabilir geçmiş için. Bu yüzden aynı
+            // izolasyon deseni: geçmiş kaydı başarısız olsa bile (ör. disk dolu) kullanıcı
+            // yine de tarama sonucunu almalı, tüm istek 500'e düşmemeli.
+            try
+            {
+                var findings = response.Results.Select(r => new ScanRuleFinding(
+                    r.RuleId, r.IsVulnerable, r.RiskLevel, r.FrameworkMapping, r.Iso27001Mapping, r.AffectedObjects, r.Remediation)).ToList();
+                _scanHistoryRepository.SaveScan(DateTime.UtcNow, initiator, response.ScannedUserCount, response.ScannedComputerCount, response.TotalRulesExecuted, response.VulnerableRulesCount, score.Score, score.Grade, findings);
+            }
+            catch (Exception historyEx)
+            {
+                _logger.LogWarning(historyEx, "Tarama geçmişi veritabanına kaydedilemedi.");
+            }
 
             return (response, score);
         }

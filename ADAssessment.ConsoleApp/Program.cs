@@ -5,6 +5,7 @@ using ADAssessment.Core;
 using ADAssessment.Infrastructure.Configuration;
 using ADAssessment.Infrastructure.Ldap;
 using ADAssessment.Infrastructure.Logging;
+using ADAssessment.Infrastructure.Persistence;
 using ADAssessment.Infrastructure.Smb;
 using ADAssessment.Infrastructure.Sysvol;
 
@@ -233,10 +234,13 @@ namespace ADAssessment.ConsoleApp
                 };
 
                 var results = new List<RuleResult>();
+                var findings = new List<ScanRuleFinding>();
 
                 void PrintAndCollect(IComplianceRule rule, RuleResult result)
                 {
                     results.Add(result);
+                    findings.Add(new ScanRuleFinding(
+                        result.RuleId, result.IsVulnerable, result.RiskLevel, rule.FrameworkMapping, rule.Iso27001Mapping, result.AffectedObjects, result.Remediation));
 
                     // "Informational" (örn. SYSVOL/GPO verisi okunamadığı için kural hiç
                     // çalıştırılamadı) durumunu "Sistem Güvenli" olarak göstermek yanıltıcı
@@ -326,6 +330,29 @@ namespace ADAssessment.ConsoleApp
                 // 3. Denetim İzleme (Audit Logging) Kaydı
                 IAuditLogger auditLogger = new AuditLogger();
                 auditLogger.LogAssessment(Environment.UserName, users.Count, results);
+
+                // 4. Tarama Geçmişi Veritabanına Kaydetme - WebAPI ile aynı %ProgramData%
+                // dosyasını paylaştığından, ConsoleApp'tan yapılan taramalar da dashboard'daki
+                // geçmiş listesinde görünür. Audit log'un yerini almaz, ayrı bir amaca hizmet eder.
+                try
+                {
+                    var scanHistoryRepository = new ScanHistoryRepository();
+                    var scoreResult = SecurityScoreCalculator.Calculate(results);
+                    scanHistoryRepository.SaveScan(
+                        DateTime.UtcNow,
+                        Environment.UserName,
+                        users.Count,
+                        computers?.Count ?? 0,
+                        results.Count,
+                        results.Count(r => r.IsVulnerable),
+                        scoreResult.Score,
+                        scoreResult.Grade,
+                        findings);
+                }
+                catch (Exception historyEx)
+                {
+                    Console.WriteLine($"[-] [GEÇMİŞ UYARISI] Tarama geçmişi veritabanına kaydedilemedi ({historyEx.Message}).");
+                }
 
             }
             catch (Exception ex)

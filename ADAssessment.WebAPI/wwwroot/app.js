@@ -21,6 +21,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const nocodeCancelEditBtn = document.getElementById('nocodeCancelEditBtn');
     const ruleIdInput = document.getElementById('ruleId');
 
+    // Geçmiş (History) sekmesi elementleri
+    const historyList = document.getElementById('historyList');
+    const historyListView = document.getElementById('historyListView');
+    const historyDetailView = document.getElementById('historyDetailView');
+    const historyDetailSummary = document.getElementById('historyDetailSummary');
+    const historyDetailList = document.getElementById('historyDetailList');
+    const historyBackBtn = document.getElementById('historyBackBtn');
+    const historyFrom = document.getElementById('historyFrom');
+    const historyTo = document.getElementById('historyTo');
+    const historySearchBtn = document.getElementById('historySearchBtn');
+    const historyClearBtn = document.getElementById('historyClearBtn');
+
     // Stats
     const statUsers = document.getElementById('statUsers');
     const statRules = document.getElementById('statRules');
@@ -308,9 +320,66 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (targetTab === 'activeRulesTab') {
                 loadActiveRules();
+            } else if (targetTab === 'historyTab') {
+                historyDetailView.classList.add('hidden');
+                historyListView.classList.remove('hidden');
+                loadHistoryList();
             }
         });
     });
+
+    // Tek bir kural sonucu için kart DOM elementi üretir - hem canlı tarama sonuçları
+    // (renderReports) hem geçmiş bir taramanın detayı (renderHistoryFindings) bu aynı
+    // fonksiyonu kullanır, ikisi arasında görünüm sapmasını (drift) önler.
+    function buildRuleCard(rule) {
+        const isVuln = rule.isVulnerable;
+        // "Informational" (örn. SYSVOL/GPO verisi okunamadığı için kural hiç
+        // çalıştırılamadı) durumu "GÜVENLİ" ile karıştırılmamalı - kontrol
+        // edilemeyen bir şey "güvenli" demek değildir.
+        const isInformational = rule.riskLevel === 'Informational';
+        const card = document.createElement('div');
+        const riskClass = rule.riskLevel.toLowerCase() + '-risk';
+
+        card.className = `vuln-card ${isVuln || isInformational ? riskClass : 'low-risk'}`;
+
+        let affectedHtml = '';
+        if (isVuln && rule.affectedObjects) {
+            affectedHtml = '<div class="affected-list">' +
+                rule.affectedObjects.map(obj => `<span class="tag-affected">${obj}</span>`).join('') +
+                '</div>';
+        }
+
+        // Otomatik Compliance Mapping: sadece gerçek bir zafiyet bulunduğunda gösterilir -
+        // "Informational"/güvenli sonuçlarda hangi çerçeveye eşlendiği önemli değildir.
+        let complianceHtml = '';
+        if (isVuln && (rule.frameworkMapping || rule.iso27001Mapping)) {
+            complianceHtml = '<div class="compliance-mapping">' +
+                (rule.frameworkMapping ? `<span class="tag-compliance">${rule.frameworkMapping}</span>` : '') +
+                (rule.iso27001Mapping ? `<span class="tag-compliance">${rule.iso27001Mapping}</span>` : '') +
+                '</div>';
+        }
+
+        let statusBadge;
+        if (isInformational) {
+            statusBadge = 'KONTROL EDİLEMEDİ (Veri Sağlanamadı)';
+        } else if (isVuln) {
+            statusBadge = 'ZAFİYET BULUNDU (' + rule.riskLevel + ')';
+        } else {
+            statusBadge = 'GÜVENLİ';
+        }
+
+        card.innerHTML = `
+            <div class="vuln-header">
+                <span class="vuln-title">${rule.ruleId} - ${rule.name || rule.ruleId}</span>
+                <span class="badge badge-risk-${rule.riskLevel.toLowerCase()}">${statusBadge}</span>
+            </div>
+            ${affectedHtml}
+            ${complianceHtml}
+            ${isVuln ? `<div class="remediation-box"><strong>💡 Çözüm Önerisi:</strong><br>${rule.remediation}</div>` : ''}
+        `;
+
+        return card;
+    }
 
     // RAPORLARI EKRANA BASTIRMA
     function renderReports(results) {
@@ -322,53 +391,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         results.forEach(rule => {
-            const isVuln = rule.isVulnerable;
-            // "Informational" (örn. SYSVOL/GPO verisi okunamadığı için kural hiç
-            // çalıştırılamadı) durumu "GÜVENLİ" ile karıştırılmamalı - kontrol
-            // edilemeyen bir şey "güvenli" demek değildir.
-            const isInformational = rule.riskLevel === 'Informational';
-            const card = document.createElement('div');
-            const riskClass = rule.riskLevel.toLowerCase() + '-risk';
-
-            card.className = `vuln-card ${isVuln || isInformational ? riskClass : 'low-risk'}`;
-
-            let affectedHtml = '';
-            if (isVuln && rule.affectedObjects) {
-                affectedHtml = '<div class="affected-list">' +
-                    rule.affectedObjects.map(obj => `<span class="tag-affected">${obj}</span>`).join('') +
-                    '</div>';
-            }
-
-            // Otomatik Compliance Mapping: sadece gerçek bir zafiyet bulunduğunda gösterilir -
-            // "Informational"/güvenli sonuçlarda hangi çerçeveye eşlendiği önemli değildir.
-            let complianceHtml = '';
-            if (isVuln && (rule.frameworkMapping || rule.iso27001Mapping)) {
-                complianceHtml = '<div class="compliance-mapping">' +
-                    (rule.frameworkMapping ? `<span class="tag-compliance">${rule.frameworkMapping}</span>` : '') +
-                    (rule.iso27001Mapping ? `<span class="tag-compliance">${rule.iso27001Mapping}</span>` : '') +
-                    '</div>';
-            }
-
-            let statusBadge;
-            if (isInformational) {
-                statusBadge = 'KONTROL EDİLEMEDİ (Veri Sağlanamadı)';
-            } else if (isVuln) {
-                statusBadge = 'ZAFİYET BULUNDU (' + rule.riskLevel + ')';
-            } else {
-                statusBadge = 'GÜVENLİ';
-            }
-
-            card.innerHTML = `
-                <div class="vuln-header">
-                    <span class="vuln-title">${rule.ruleId} - ${rule.name || rule.ruleId}</span>
-                    <span class="badge badge-risk-${rule.riskLevel.toLowerCase()}">${statusBadge}</span>
-                </div>
-                ${affectedHtml}
-                ${complianceHtml}
-                ${isVuln ? `<div class="remediation-box"><strong>💡 Çözüm Önerisi:</strong><br>${rule.remediation}</div>` : ''}
-            `;
-
-            reportsList.appendChild(card);
+            reportsList.appendChild(buildRuleCard(rule));
         });
     }
 
@@ -435,6 +458,149 @@ document.addEventListener('DOMContentLoaded', () => {
             activeRulesList.innerHTML = '<p class="alert alert-danger">Kurallar yüklenirken hata oluştu.</p>';
         }
     }
+
+    // GEÇMİŞ (HISTORY) SEKMESİ - daha önce tamamlanmış taramaları listeler/aratır,
+    // bir satıra tıklanınca o taramanın tam bulgu listesini gösterir.
+
+    function formatHistoryTimestamp(isoString) {
+        try {
+            return new Date(isoString).toLocaleString('tr-TR');
+        } catch {
+            return isoString;
+        }
+    }
+
+    function renderHistorySummaries(scans) {
+        historyList.innerHTML = '';
+
+        if (!scans || scans.length === 0) {
+            historyList.innerHTML = '<div class="empty-state"><div class="empty-icon">🕓</div><h4>Henüz Geçmiş Tarama Yok</h4><p>Bir tarama tamamlandığında burada listelenir.</p></div>';
+            return;
+        }
+
+        scans.forEach(scan => {
+            const card = document.createElement('div');
+            card.className = 'vuln-card low-risk';
+            card.style.cursor = 'pointer';
+            card.innerHTML = `
+                <div class="vuln-header">
+                    <span class="vuln-title">${formatHistoryTimestamp(scan.timestampUtc)} — ${scan.initiator}</span>
+                    <span class="badge badge-risk-${scan.vulnerableRulesCount > 0 ? 'high' : 'low'}">Skor: ${scan.securityScore} (${scan.securityGrade})</span>
+                </div>
+                <p style="color:#94a3b8; font-size:13px;">
+                    ${scan.scannedUserCount} kullanıcı, ${scan.scannedComputerCount} bilgisayar taranmış ·
+                    ${scan.totalRulesExecuted} kural çalıştırılmış · ${scan.vulnerableRulesCount} zafiyet bulunmuş
+                </p>
+            `;
+            card.addEventListener('click', () => showHistoryDetail(scan.id));
+            historyList.appendChild(card);
+        });
+    }
+
+    async function loadHistoryList() {
+        historyList.innerHTML = '<p>Geçmiş yükleniyor...</p>';
+        try {
+            const res = await fetch(`${API_BASE}/history?limit=50`, {
+                headers: { 'Authorization': `Bearer ${jwtToken}` }
+            });
+
+            if (res.status === 401) {
+                handleUnauthorized();
+                return;
+            }
+
+            const scans = await safeParseJson(res);
+            renderHistorySummaries(Array.isArray(scans) ? scans : []);
+        } catch (err) {
+            historyList.innerHTML = '<p class="alert alert-danger">Geçmiş yüklenirken hata oluştu.</p>';
+        }
+    }
+
+    async function showHistoryDetail(scanId) {
+        try {
+            const res = await fetch(`${API_BASE}/history/${scanId}`, {
+                headers: { 'Authorization': `Bearer ${jwtToken}` }
+            });
+
+            if (res.status === 401) {
+                handleUnauthorized();
+                return;
+            }
+
+            if (!res.ok) {
+                alert('Tarama detayı yüklenemedi.');
+                return;
+            }
+
+            const detail = await safeParseJson(res);
+            const summary = detail.summary;
+
+            historyDetailSummary.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-info">
+                        <span class="stat-label">Taranan Kullanıcılar</span>
+                        <h3>${summary.scannedUserCount}</h3>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-info">
+                        <span class="stat-label">Çalıştırılan Kurallar</span>
+                        <h3>${summary.totalRulesExecuted}</h3>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-info">
+                        <span class="stat-label">Tespit Edilen Zafiyetler</span>
+                        <h3 class="text-danger">${summary.vulnerableRulesCount}</h3>
+                    </div>
+                </div>
+            `;
+
+            historyDetailList.innerHTML = '';
+            (detail.findings || []).forEach(finding => {
+                historyDetailList.appendChild(buildRuleCard(finding));
+            });
+
+            historyListView.classList.add('hidden');
+            historyDetailView.classList.remove('hidden');
+        } catch (err) {
+            alert('Tarama detayı yüklenirken bağlantı hatası: ' + err.message);
+        }
+    }
+
+    historyBackBtn.addEventListener('click', () => {
+        historyDetailView.classList.add('hidden');
+        historyListView.classList.remove('hidden');
+    });
+
+    historySearchBtn.addEventListener('click', async () => {
+        const params = new URLSearchParams();
+        if (historyFrom.value) params.set('from', new Date(historyFrom.value).toISOString());
+        if (historyTo.value) params.set('to', new Date(historyTo.value).toISOString());
+
+        historyList.innerHTML = '<p>Aranıyor...</p>';
+        try {
+            const res = await fetch(`${API_BASE}/history/search?${params.toString()}`, {
+                headers: { 'Authorization': `Bearer ${jwtToken}` }
+            });
+
+            if (res.status === 401) {
+                handleUnauthorized();
+                return;
+            }
+
+            const scans = await safeParseJson(res);
+            renderHistorySummaries(Array.isArray(scans) ? scans : []);
+        } catch (err) {
+            historyList.innerHTML = '<p class="alert alert-danger">Arama sırasında hata oluştu.</p>';
+        }
+    });
+
+    historyClearBtn.addEventListener('click', () => {
+        historyFrom.value = '';
+        historyTo.value = '';
+        loadHistoryList();
+    });
 
     function showDashboard() {
         loginSection.classList.add('hidden');

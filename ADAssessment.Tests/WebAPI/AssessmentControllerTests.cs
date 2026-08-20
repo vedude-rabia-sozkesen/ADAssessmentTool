@@ -43,7 +43,8 @@ namespace ADAssessment.Tests.WebAPI
             IEnumerable<IDcSyncComplianceRule>? dcSyncRules = null,
             IEnumerable<IDomainFunctionalLevelComplianceRule>? domainFunctionalLevelRules = null,
             IEnumerable<IForestComplianceRule>? forestRules = null,
-            IEnumerable<ITrustComplianceRule>? trustRules = null)
+            IEnumerable<ITrustComplianceRule>? trustRules = null,
+            ADAssessment.Infrastructure.Persistence.IScanHistoryRepository? scanHistoryRepository = null)
         {
             var controller = new AssessmentController(
                 extractor,
@@ -61,6 +62,7 @@ namespace ADAssessment.Tests.WebAPI
                 trustRules ?? Array.Empty<ITrustComplianceRule>(),
                 new JsonRuleRepository(_emptyRulesFolder),
                 auditLogger,
+                scanHistoryRepository ?? new FakeScanHistoryRepository(),
                 NullLogger<AssessmentController>.Instance);
 
             // ControllerBase.User, HttpContext üzerinden okunuyor - gerçek bir HTTP isteği
@@ -233,6 +235,51 @@ namespace ADAssessment.Tests.WebAPI
             var response = Assert.IsType<ScanResultResponse>(okResult.Value);
             var ldapRuleResult = Assert.Single(response.Results, r => r.RuleId == "AD-019");
             Assert.Equal("Informational", ldapRuleResult.RiskLevel);
+        }
+
+        [Fact]
+        public void RunScan_Success_SavesToScanHistoryRepository()
+        {
+            // Tarama geçmişi veritabanına kaydetme entegrasyonunun regresyon testi -
+            // FakeAuditLogger.WasCalled deseniyle aynı şekilde doğrulanır.
+            var users = new List<AdUserAccount>
+            {
+                new AdUserAccount { SamAccountName = "nopass", UserAccountControl = 0x0200 | 0x0020 }
+            };
+            var extractor = FakeLdapDataExtractor.Returning(users);
+            var auditLogger = new FakeAuditLogger();
+            var scanHistoryRepository = new FakeScanHistoryRepository();
+            var controller = MakeController(
+                extractor,
+                auditLogger,
+                rules: new IComplianceRule[] { new PasswordNotRequiredRule() },
+                scanHistoryRepository: scanHistoryRepository);
+
+            var result = controller.RunScan();
+
+            Assert.IsType<OkObjectResult>(result);
+            Assert.True(scanHistoryRepository.WasCalled);
+            Assert.Equal(1, scanHistoryRepository.LastVulnerableRulesCount);
+            Assert.NotNull(scanHistoryRepository.LastFindings);
+            Assert.Contains(scanHistoryRepository.LastFindings!, f => f.RuleId == "AD-004");
+        }
+
+        [Fact]
+        public void RunScan_ScanHistoryRepositoryThrows_ScanStillSucceeds()
+        {
+            // Geçmiş kaydı başarısız olsa bile (ör. disk dolu) taramanın kendisi
+            // 500'e düşmemeli - SYSVOL/computer izolasyonuyla aynı desen.
+            var users = new List<AdUserAccount> { new AdUserAccount { SamAccountName = "jdoe", UserAccountControl = 0x0200 } };
+            var extractor = FakeLdapDataExtractor.Returning(users);
+            var auditLogger = new FakeAuditLogger();
+            var controller = MakeController(
+                extractor,
+                auditLogger,
+                scanHistoryRepository: new ThrowingFakeScanHistoryRepository());
+
+            var result = controller.RunScan();
+
+            Assert.IsType<OkObjectResult>(result);
         }
 
         [Fact]

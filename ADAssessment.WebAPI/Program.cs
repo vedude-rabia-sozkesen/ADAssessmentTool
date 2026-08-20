@@ -9,6 +9,7 @@ using ADAssessment.Core;
 using ADAssessment.Infrastructure.Configuration;
 using ADAssessment.Infrastructure.Ldap;
 using ADAssessment.Infrastructure.Logging;
+using ADAssessment.Infrastructure.Persistence;
 using ADAssessment.Infrastructure.Smb;
 using ADAssessment.Infrastructure.Sysvol;
 using ADAssessment.WebAPI.Controllers;
@@ -62,6 +63,11 @@ builder.Services.AddAuthorization();
 builder.Services.AddSingleton<ISecretResolver>(sharedSecretResolver);
 builder.Services.AddSingleton<IAuditLogger, AuditLogger>();
 builder.Services.AddSingleton<JsonRuleRepository>();
+
+// Tarama Geçmişi Deposu (yerel SQLite - bkz. ScanHistoryRepository doc-comment'i).
+// Singleton olarak kaydedilir ama her metod kendi bağlantısını açıp kapattığından
+// (kalıcı bir bağlantı/DbContext tutmadığından) thread-safe'tir.
+builder.Services.AddSingleton<IScanHistoryRepository, ScanHistoryRepository>();
 
 // Active Directory Data Extractor Servisi
 builder.Services.AddScoped<ILdapDataExtractor>(sp =>
