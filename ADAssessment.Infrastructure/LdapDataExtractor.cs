@@ -75,6 +75,16 @@ namespace ADAssessment.Infrastructure.Ldap
 
         private readonly LdapConnectionOptions _options;
 
+        // Bu LdapDataExtractor örneğinin (DI'da AddScoped - yani tek bir tarama isteği
+        // boyunca yaşar) LDAPS'in bu istekte çalışıp çalışmadığına dair öğrendiği bilgiyi
+        // önbelleğe alır: null = henüz denenmedi, true = bu taramada zaten başarısız oldu
+        // (tekrar deneme, doğrudan Port 389'a git), false = çalışıyor. Her yeni tarama
+        // (yeni bir HTTP isteği = yeni bir örnek) LDAPS'i en az bir kez yeniden dener -
+        // sadece AYNI tarama içindeki 6+ ayrı sorgunun (kullanıcılar, bilgisayarlar,
+        // DCSync, functional level, forest özellikleri, trust'lar) HER BİRİNİN kendi
+        // başarısız LDAPS denemesini beklemesi önlenir.
+        private bool? _ldapsUnavailableThisScan;
+
         /// <summary>
         /// Konfigürasyon nesnesi ile LDAPS ve gMSA uyumlu kurucu metod.
         /// </summary>
@@ -507,23 +517,44 @@ namespace ADAssessment.Infrastructure.Ldap
                     "Bağlantıyı LDAPS (Port 636) olarak yapılandırın veya test ortamı için AllowUnsecureFallback=true yapın.");
             }
 
+            bool wantsLdaps = _options.UseLdaps || formattedPath.Contains(":636");
+
+            // Bu taramada LDAPS'in zaten çalışmadığı öğrenildiyse, garanti başarısız
+            // olacak bir denemeyi tekrar bekletmek yerine doğrudan bilinen çalışan
+            // (Port 389) yola gidilir. AllowUnsecureFallback zaten yukarıdaki Zero Trust
+            // denetiminden geçtiği için burada tekrar kontrol edilmesine gerek yok -
+            // bu dal SADECE daha önce gerçekten başarılı bir fallback yaşandıysa girilir.
+            if (wantsLdaps && _ldapsUnavailableThisScan == true)
+            {
+                return queryFunc(BuildFallbackPath(), false);
+            }
+
             try
             {
-                return queryFunc(formattedPath, _options.UseLdaps || formattedPath.Contains(":636"));
+                var result = queryFunc(formattedPath, wantsLdaps);
+                if (wantsLdaps)
+                {
+                    _ldapsUnavailableThisScan = false;
+                }
+                return result;
             }
-            catch (Exception ex) when (_options.AllowUnsecureFallback && (_options.UseLdaps || formattedPath.Contains(":636")))
+            catch (Exception ex) when (_options.AllowUnsecureFallback && wantsLdaps)
             {
                 Console.WriteLine($"[*] [LDAPS UYARISI] Port 636 (SSL) bağlantısı kurulamadı ({ex.Message}). Fallback: Kerberos Sealing (Port 389) deneniyor...");
+                _ldapsUnavailableThisScan = true;
 
-                string fallbackPath = _options.LdapPath;
-                if (fallbackPath.StartsWith("LDAPS://", StringComparison.OrdinalIgnoreCase))
-                {
-                    fallbackPath = "LDAP://" + fallbackPath.Substring(8);
-                }
-                fallbackPath = fallbackPath.Replace(":636", "");
-
-                return queryFunc(fallbackPath, false);
+                return queryFunc(BuildFallbackPath(), false);
             }
+        }
+
+        private string BuildFallbackPath()
+        {
+            string fallbackPath = _options.LdapPath;
+            if (fallbackPath.StartsWith("LDAPS://", StringComparison.OrdinalIgnoreCase))
+            {
+                fallbackPath = "LDAP://" + fallbackPath.Substring(8);
+            }
+            return fallbackPath.Replace(":636", "");
         }
 
         private IReadOnlyList<T> Query<T>(string path, bool useLdaps, string filter, string[] properties, Func<SearchResult, T> mapper, bool includeDacl)
