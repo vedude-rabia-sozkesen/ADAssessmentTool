@@ -45,12 +45,56 @@
                 <span class="badge badge-zero-trust">Zero Trust LDAPS (Port 636)</span>
             </div>
             <div class="user-menu">
+                <span id="adConnectionBadge" class="badge badge-risk-medium">AD: Kontrol Ediliyor...</span>
+                <button id="adConnectionBtn" class="btn btn-sm btn-outline">⚙️ AD Bağlantısı</button>
                 <span id="userBadge" class="user-name">Giriş Yapıldı</span>
                 <button id="logoutBtn" class="btn btn-sm btn-outline">Çıkış Yap</button>
             </div>
         </header>
 
         <main class="main-content">
+            <!-- AD BAĞLANTI AYARLARI KARTI - yapılandırılmamışsa otomatik açık, aksi halde
+                 "⚙️ AD Bağlantısı" butonuyla istendiğinde tekrar açılabilir. -->
+            <div id="adConnectionCard" class="form-card hidden">
+                <h3>🔌 AD Bağlantı Ayarları</h3>
+                <p class="form-subtitle">Taramayı çalıştırmadan önce hangi Active Directory'e, hangi hesapla bağlanılacağını belirtin. Bu bilgiler sadece bellekte tutulur, diske hiç yazılmaz - uygulama yeniden başladığında tekrar girilmesi gerekir.</p>
+
+                <form id="adConnectionForm">
+                    <div class="form-row">
+                        <div class="form-group col-6">
+                            <label for="adLdapPath">LDAP Path / IP</label>
+                            <input type="text" id="adLdapPath" placeholder="LDAPS://192.168.92.100:636/DC=lab,DC=local" required>
+                        </div>
+                        <div class="form-group col-6">
+                            <label for="adUsername">Kullanıcı Adı (düşük yetkili AD hesabı)</label>
+                            <input type="text" id="adUsername" placeholder="svc-adassessment">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group col-6">
+                            <label for="adPassword">Parola</label>
+                            <input type="password" id="adPassword" placeholder="••••••••">
+                        </div>
+                        <div class="form-group col-6">
+                            <label>&nbsp;</label>
+                            <div style="display:flex; align-items:center; gap:20px; height:38px;">
+                                <label style="display:flex; align-items:center; gap:6px; font-weight:normal; margin:0;">
+                                    <input type="checkbox" id="adUseLdaps" checked> LDAPS Kullan
+                                </label>
+                                <label style="display:flex; align-items:center; gap:6px; font-weight:normal; margin:0;">
+                                    <input type="checkbox" id="adAllowInsecureFallback"> Güvensiz Bağlantıya İzin Ver (test ortamı)
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Bağlantıyı Kaydet</button>
+                    <button type="button" id="adConnectionCancelBtn" class="btn btn-outline hidden">İptal</button>
+                </form>
+                <div id="adConnectionAlert" class="alert hidden"></div>
+            </div>
+
             <!-- İstatistik Kartları -->
             <div class="stats-grid">
                 <div class="stat-card">

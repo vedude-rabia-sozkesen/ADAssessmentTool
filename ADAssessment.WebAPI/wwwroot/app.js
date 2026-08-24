@@ -21,6 +21,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const nocodeCancelEditBtn = document.getElementById('nocodeCancelEditBtn');
     const ruleIdInput = document.getElementById('ruleId');
 
+    // AD Bağlantı Ayarları elementleri
+    const adConnectionBadge = document.getElementById('adConnectionBadge');
+    const adConnectionBtn = document.getElementById('adConnectionBtn');
+    const adConnectionCard = document.getElementById('adConnectionCard');
+    const adConnectionForm = document.getElementById('adConnectionForm');
+    const adConnectionAlert = document.getElementById('adConnectionAlert');
+    const adConnectionCancelBtn = document.getElementById('adConnectionCancelBtn');
+    const adLdapPath = document.getElementById('adLdapPath');
+    const adUsername = document.getElementById('adUsername');
+    const adPassword = document.getElementById('adPassword');
+    const adUseLdaps = document.getElementById('adUseLdaps');
+    const adAllowInsecureFallback = document.getElementById('adAllowInsecureFallback');
+
     // Geçmiş (History) sekmesi elementleri
     const historyList = document.getElementById('historyList');
     const historyListView = document.getElementById('historyListView');
@@ -607,7 +620,94 @@ document.addEventListener('DOMContentLoaded', () => {
         dashboardSection.classList.remove('hidden');
         const displayName = localStorage.getItem('jwt_username') || 'Kullanıcı';
         document.getElementById('userBadge').textContent = `Oturum Açık: ${displayName} (Security Analyst)`;
+        checkAdConnectionStatus();
     }
+
+    // AD BAĞLANTI AYARLARI - dashboard'a her girişte (ve manuel "⚙️ AD Bağlantısı"
+    // butonuna tıklandığında) durumu kontrol eder. Yapılandırılmamışsa formu otomatik
+    // açık gösterir - kullanıcının "hiçbir AD'ye bağlı olmadan başlasın, sorsun" isteği.
+    async function checkAdConnectionStatus() {
+        try {
+            const res = await fetch(`${API_BASE}/adconnection/status`, {
+                headers: { 'Authorization': `Bearer ${jwtToken}` }
+            });
+
+            if (res.status === 401) {
+                handleUnauthorized();
+                return;
+            }
+
+            const status = await safeParseJson(res);
+
+            if (status.configured) {
+                adConnectionBadge.className = 'badge badge-risk-low';
+                adConnectionBadge.textContent = `AD: ${status.username || '?'}@${status.ldapPath || '?'}`;
+                adConnectionCard.classList.add('hidden');
+                adConnectionCancelBtn.classList.remove('hidden');
+            } else {
+                adConnectionBadge.className = 'badge badge-risk-high';
+                adConnectionBadge.textContent = 'AD: Yapılandırılmadı';
+                adConnectionCard.classList.remove('hidden');
+                adConnectionCancelBtn.classList.add('hidden');
+            }
+        } catch (err) {
+            adConnectionBadge.className = 'badge badge-risk-high';
+            adConnectionBadge.textContent = 'AD: Durum Alınamadı';
+        }
+    }
+
+    adConnectionBtn.addEventListener('click', () => {
+        adConnectionCard.classList.toggle('hidden');
+    });
+
+    adConnectionCancelBtn.addEventListener('click', () => {
+        adConnectionCard.classList.add('hidden');
+        adConnectionAlert.classList.add('hidden');
+    });
+
+    adConnectionForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        adConnectionAlert.classList.add('hidden');
+
+        const payload = {
+            ldapPath: adLdapPath.value,
+            username: adUsername.value,
+            password: adPassword.value,
+            useLdaps: adUseLdaps.checked,
+            allowUnsecureFallback: adAllowInsecureFallback.checked
+        };
+
+        try {
+            const res = await fetch(`${API_BASE}/adconnection`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${jwtToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.status === 401) {
+                handleUnauthorized();
+                return;
+            }
+
+            const data = await safeParseJson(res);
+
+            if (res.ok) {
+                adPassword.value = '';
+                await checkAdConnectionStatus();
+            } else {
+                adConnectionAlert.className = 'alert alert-danger';
+                adConnectionAlert.textContent = data.message || 'AD bağlantı ayarları kaydedilemedi.';
+                adConnectionAlert.classList.remove('hidden');
+            }
+        } catch (err) {
+            adConnectionAlert.className = 'alert alert-danger';
+            adConnectionAlert.textContent = 'Bağlantı hatası: ' + err.message;
+            adConnectionAlert.classList.remove('hidden');
+        }
+    });
 
     function showLogin() {
         dashboardSection.classList.add('hidden');

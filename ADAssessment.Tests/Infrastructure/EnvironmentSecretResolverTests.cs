@@ -1,5 +1,6 @@
 using System;
 using ADAssessment.Infrastructure.Configuration;
+using ADAssessment.Infrastructure.Ldap;
 
 namespace ADAssessment.Tests.Infrastructure
 {
@@ -181,6 +182,47 @@ namespace ADAssessment.Tests.Infrastructure
 
                 Assert.False(options.AllowUnsecureFallback);
             }, (AllowFallbackVar, "not-a-bool"));
+        }
+
+        [Fact]
+        public void ResolveLdapOptions_SettingsStoreEmpty_FallsBackToEnvVarBehavior()
+        {
+            // IAdConnectionSettingsStore geçilmiş ama içi boşsa (dashboard'dan henüz hiçbir
+            // ayar girilmemişse), davranış store hiç geçilmemiş gibi (parametresiz kurucu)
+            // aynı olmalı - env var'lara düşmeli.
+            WithEnv(() =>
+            {
+                var store = new InMemoryAdConnectionSettingsStore();
+                var resolver = new EnvironmentSecretResolver(store);
+
+                var options = resolver.ResolveLdapOptions();
+
+                Assert.True(options.AllowUnsecureFallback);
+            }, (AllowFallbackVar, "true"));
+        }
+
+        [Fact]
+        public void ResolveLdapOptions_SettingsStoreHasValue_TakesPriorityOverEnvVars()
+        {
+            // Dashboard'dan bir AD bağlantı ayarı girilmişse (store dolu), bu env var'lardan
+            // TAMAMEN bağımsız olarak döner - env var'lar tamamen farklı bir hedefi işaret
+            // etse bile store'daki ayar kazanır.
+            WithEnv(() =>
+            {
+                var store = new InMemoryAdConnectionSettingsStore();
+                store.Set(new LdapConnectionOptions
+                {
+                    LdapPath = "LDAPS://10.99.99.99:636/DC=fromstore,DC=local",
+                    Username = "store-user",
+                    AllowUnsecureFallback = false
+                });
+                var resolver = new EnvironmentSecretResolver(store);
+
+                var options = resolver.ResolveLdapOptions();
+
+                Assert.Equal("LDAPS://10.99.99.99:636/DC=fromstore,DC=local", options.LdapPath);
+                Assert.Equal("store-user", options.Username);
+            }, (AllowFallbackVar, "true"));
         }
     }
 }

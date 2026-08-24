@@ -22,8 +22,31 @@ namespace ADAssessment.Infrastructure.Configuration
         private readonly object _credentialCacheLock = new();
         private ApiCredentialOptions? _cachedApiCredentials;
 
+        private readonly IAdConnectionSettingsStore? _adConnectionSettingsStore;
+
+        /// <summary>
+        /// settingsStore opsiyoneldir - ConsoleApp gibi tüketiciler bunu hiç geçmeden
+        /// (parametresiz) örnek oluşturmaya devam edebilir, tamamen eski (sadece env-var)
+        /// davranışı korunur. WebAPI ise dashboard'dan girilen ayarları önceliklendirmek
+        /// için gerçek, paylaşılan bir store örneği geçer.
+        /// </summary>
+        public EnvironmentSecretResolver(IAdConnectionSettingsStore? settingsStore = null)
+        {
+            _adConnectionSettingsStore = settingsStore;
+        }
+
         public LdapConnectionOptions ResolveLdapOptions()
         {
+            // Dashboard üzerinden arayüzden bir AD bağlantı ayarı girilmişse (bkz.
+            // AdConnectionController), o ayar env var'lardan daima önceliklidir - kullanıcı
+            // uygulamayı açtıktan sonra "hangi AD'ye bağlanmak istediğini" burada belirtmiş
+            // demektir.
+            var dynamicOptions = _adConnectionSettingsStore?.GetCurrent();
+            if (dynamicOptions != null)
+            {
+                return dynamicOptions;
+            }
+
             // Ortam Değişkenlerinden oku (Docker, Kubernetes, Production Server)
             string? envPath = Environment.GetEnvironmentVariable("AD_ASSESSMENT_LDAP_PATH");
             string? envUsername = Environment.GetEnvironmentVariable("AD_ASSESSMENT_USERNAME");

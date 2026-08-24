@@ -33,7 +33,12 @@ builder.Services.AddOpenApi();
 // NOT: Aşağıda DI konteynerine bu ÖRNEĞİN kendisi (AddSingleton<ISecretResolver>(instance))
 // kaydedilir - AuthController'ın token imzalarken kullandığı key ile burada doğrulama için
 // kullanılan key'in (Development'ta rastgele üretiliyor olabilir) aynı olması bunu gerektirir.
-var sharedSecretResolver = new EnvironmentSecretResolver();
+// AD Bağlantı Ayarları Deposu (bkz. IAdConnectionSettingsStore doc-comment'i) - erkenden
+// (DI konteyneri kurulmadan önce) oluşturulur çünkü sharedSecretResolver'ın kendisi de
+// aynı erken aşamada JWT anahtarını çözmek için kullanılıyor; ikisi burada birbirine
+// bağlanır ki dashboard'dan girilen AD ayarı env var'lardan önceliklendirilsin.
+var sharedAdConnectionSettingsStore = new InMemoryAdConnectionSettingsStore();
+var sharedSecretResolver = new EnvironmentSecretResolver(sharedAdConnectionSettingsStore);
 var jwtSigningOptions = sharedSecretResolver.ResolveJwtSigningOptions();
 var key = Encoding.UTF8.GetBytes(jwtSigningOptions.Key);
 
@@ -61,6 +66,7 @@ builder.Services.AddAuthorization();
 
 // 3. Zero Trust & Infrastructure Servislerini DI Konteynerine Kaydet
 builder.Services.AddSingleton<ISecretResolver>(sharedSecretResolver);
+builder.Services.AddSingleton<IAdConnectionSettingsStore>(sharedAdConnectionSettingsStore);
 builder.Services.AddSingleton<IAuditLogger, AuditLogger>();
 builder.Services.AddSingleton<JsonRuleRepository>();
 
