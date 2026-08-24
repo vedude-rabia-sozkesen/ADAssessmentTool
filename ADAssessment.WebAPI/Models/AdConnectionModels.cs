@@ -14,12 +14,19 @@ namespace ADAssessment.WebAPI.Models
 
     /// <summary>
     /// POST /api/adconnection isteğinin gövdesi - dashboard'daki "AD Bağlantısı" formundan
-    /// gelir. RuleListItem deseniyle aynı: WebAPI'ye özgü bir DTO, Core/Infrastructure'ı
-    /// (LdapConnectionOptions zaten var, burada tekrar tanımlamaya gerek yok) kirletmez.
+    /// gelir. Kullanıcının LDAP path söz dizimini (LDAP://, DC=... vb.) hiç bilmesine
+    /// gerek kalmasın diye DcHostname/IpAddress ayrı alanlar olarak istenir;
+    /// AdConnectionController bunlardan LdapConnectionOptions.LdapPath'i inşa eder
+    /// (bkz. LdapPathBuilder). RuleListItem deseniyle aynı: WebAPI'ye özgü bir DTO.
     /// </summary>
     public sealed class AdConnectionRequest
     {
-        public string LdapPath { get; set; } = string.Empty;
+        /// <summary>Tam nitelikli (FQDN) DC sunucu adı, ör. "DC01.sirketiniz.local" - domain DN'i buradan çıkarılır.</summary>
+        public string DcHostname { get; set; } = string.Empty;
+
+        /// <summary>DC'ye gerçekten bağlanılacak IP adresi.</summary>
+        public string IpAddress { get; set; } = string.Empty;
+
         public string? Username { get; set; }
         public string? Password { get; set; }
         public bool UseLdaps { get; set; } = true;

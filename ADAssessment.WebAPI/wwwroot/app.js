@@ -30,7 +30,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const adConnectionAlert = document.getElementById('adConnectionAlert');
     const adConnectionCancelBtn = document.getElementById('adConnectionCancelBtn');
     const adConnectionSubmitBtn = document.getElementById('adConnectionSubmitBtn');
-    const adLdapPath = document.getElementById('adLdapPath');
+    const adDcHostname = document.getElementById('adDcHostname');
+    const adIpAddress = document.getElementById('adIpAddress');
     const adUsername = document.getElementById('adUsername');
     const adPassword = document.getElementById('adPassword');
     const adUseLdaps = document.getElementById('adUseLdaps');
@@ -717,7 +718,8 @@ document.addEventListener('DOMContentLoaded', () => {
         adConnectionAlert.classList.add('hidden');
 
         const payload = {
-            ldapPath: adLdapPath.value,
+            dcHostname: adDcHostname.value,
+            ipAddress: adIpAddress.value,
             username: adUsername.value,
             password: adPassword.value,
             useLdaps: adUseLdaps.checked,

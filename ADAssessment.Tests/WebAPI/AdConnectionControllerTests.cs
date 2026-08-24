@@ -19,6 +19,16 @@ namespace ADAssessment.Tests.WebAPI
             return new AdConnectionController(store, tester ?? FakeLdapConnectionTester.Returning(true), NullLogger<AdConnectionController>.Instance);
         }
 
+        private static AdConnectionRequest ValidRequest() => new()
+        {
+            DcHostname = "DC01.contoso.local",
+            IpAddress = "192.0.2.1",
+            Username = "svc-adassessment",
+            Password = "super-secret",
+            UseLdaps = true,
+            AllowUnsecureFallback = true
+        };
+
         [Fact]
         public void GetStatus_NothingConfigured_ReturnsNotConfigured()
         {
@@ -34,27 +44,34 @@ namespace ADAssessment.Tests.WebAPI
         }
 
         [Fact]
-        public void SetConnection_ValidRequest_StoresItAndStatusReflectsIt()
+        public void SetConnection_ValidRequest_BuildsLdapPathFromHostnameAndIp()
         {
             var store = new InMemoryAdConnectionSettingsStore();
             var controller = MakeController(store);
-            var request = new AdConnectionRequest
-            {
-                LdapPath = "LDAPS://192.0.2.1:636/DC=contoso,DC=local",
-                Username = "svc-adassessment",
-                Password = "super-secret",
-                UseLdaps = true,
-                AllowUnsecureFallback = true
-            };
 
-            var result = controller.SetConnection(request);
+            var result = controller.SetConnection(ValidRequest());
 
             Assert.IsType<OkObjectResult>(result);
             var current = store.GetCurrent();
             Assert.NotNull(current);
-            Assert.Equal("LDAPS://192.0.2.1:636/DC=contoso,DC=local", current!.LdapPath);
+            // "DC01.contoso.local" -> ilk etiket ("DC01") atılır, kalan ("contoso.local")
+            // "DC=contoso,DC=local" olur; IP adresiyle birlikte tam path inşa edilir.
+            Assert.Equal("LDAP://192.0.2.1/DC=contoso,DC=local", current!.LdapPath);
             Assert.Equal("svc-adassessment", current.Username);
             Assert.True(current.AllowUnsecureFallback);
+        }
+
+        [Fact]
+        public void SetConnection_ChildDomainHostname_BuildsMultiLabelDn()
+        {
+            var store = new InMemoryAdConnectionSettingsStore();
+            var controller = MakeController(store);
+            var request = ValidRequest();
+            request.DcHostname = "DC02.child.contoso.local";
+
+            controller.SetConnection(request);
+
+            Assert.Equal("LDAP://192.0.2.1/DC=child,DC=contoso,DC=local", store.GetCurrent()!.LdapPath);
         }
 
         [Fact]
@@ -64,21 +81,51 @@ namespace ADAssessment.Tests.WebAPI
             // Password alanı olmadığını) doğrulayan regresyon testi.
             var store = new InMemoryAdConnectionSettingsStore();
             var controller = MakeController(store);
-            var request = new AdConnectionRequest { LdapPath = "LDAPS://192.0.2.1:636/DC=contoso,DC=local", Password = "super-secret-value" };
 
-            var result = controller.SetConnection(request);
+            var result = controller.SetConnection(ValidRequest());
 
             var okResult = Assert.IsType<OkObjectResult>(result);
             string json = System.Text.Json.JsonSerializer.Serialize(okResult.Value);
-            Assert.DoesNotContain("super-secret-value", json);
+            Assert.DoesNotContain("super-secret", json);
         }
 
         [Fact]
-        public void SetConnection_EmptyLdapPath_ReturnsBadRequest()
+        public void SetConnection_EmptyDcHostname_ReturnsBadRequest()
         {
             var store = new InMemoryAdConnectionSettingsStore();
             var controller = MakeController(store);
-            var request = new AdConnectionRequest { LdapPath = "" };
+            var request = ValidRequest();
+            request.DcHostname = "";
+
+            var result = controller.SetConnection(request);
+
+            Assert.IsType<BadRequestObjectResult>(result);
+            Assert.Null(store.GetCurrent());
+        }
+
+        [Fact]
+        public void SetConnection_EmptyIpAddress_ReturnsBadRequest()
+        {
+            var store = new InMemoryAdConnectionSettingsStore();
+            var controller = MakeController(store);
+            var request = ValidRequest();
+            request.IpAddress = "";
+
+            var result = controller.SetConnection(request);
+
+            Assert.IsType<BadRequestObjectResult>(result);
+            Assert.Null(store.GetCurrent());
+        }
+
+        [Fact]
+        public void SetConnection_DcHostnameNotFullyQualified_ReturnsBadRequest()
+        {
+            // Nokta içermeyen bir isimden ("DC01") domain adı güvenilir şekilde
+            // çıkarılamaz - kullanıcıya net bir "FQDN gerekli" hatası dönmeli.
+            var store = new InMemoryAdConnectionSettingsStore();
+            var controller = MakeController(store);
+            var request = ValidRequest();
+            request.DcHostname = "DC01";
 
             var result = controller.SetConnection(request);
 
@@ -91,9 +138,8 @@ namespace ADAssessment.Tests.WebAPI
         {
             var store = new InMemoryAdConnectionSettingsStore();
             var controller = MakeController(store, FakeLdapConnectionTester.Returning(false));
-            var request = new AdConnectionRequest { LdapPath = "LDAPS://192.0.2.1:636/DC=contoso,DC=local", Username = "wrong-user", Password = "wrong-pass" };
 
-            var result = controller.SetConnection(request);
+            var result = controller.SetConnection(ValidRequest());
 
             Assert.IsType<BadRequestObjectResult>(result);
             Assert.Null(store.GetCurrent());
@@ -105,9 +151,8 @@ namespace ADAssessment.Tests.WebAPI
             const string sensitiveDetail = "System.DirectoryServices.DirectoryEntry.Bind failed against DC=internal,DC=corp,DC=example at 10.0.0.5";
             var store = new InMemoryAdConnectionSettingsStore();
             var controller = MakeController(store, FakeLdapConnectionTester.Throwing(new System.InvalidOperationException(sensitiveDetail)));
-            var request = new AdConnectionRequest { LdapPath = "LDAPS://192.0.2.1:636/DC=contoso,DC=local" };
 
-            var result = controller.SetConnection(request);
+            var result = controller.SetConnection(ValidRequest());
 
             var badRequest = Assert.IsType<BadRequestObjectResult>(result);
             Assert.Null(store.GetCurrent());
@@ -120,13 +165,13 @@ namespace ADAssessment.Tests.WebAPI
         {
             var store = new InMemoryAdConnectionSettingsStore();
             var controller = MakeController(store);
-            controller.SetConnection(new AdConnectionRequest { LdapPath = "LDAPS://192.0.2.1:636/DC=contoso,DC=local", Password = "super-secret-value" });
+            controller.SetConnection(ValidRequest());
 
             var result = controller.GetStatus();
 
             var okResult = Assert.IsType<OkObjectResult>(result);
             string json = System.Text.Json.JsonSerializer.Serialize(okResult.Value);
-            Assert.DoesNotContain("super-secret-value", json);
+            Assert.DoesNotContain("super-secret", json);
         }
 
         [Fact]
@@ -134,7 +179,7 @@ namespace ADAssessment.Tests.WebAPI
         {
             var store = new InMemoryAdConnectionSettingsStore();
             var controller = MakeController(store);
-            controller.SetConnection(new AdConnectionRequest { LdapPath = "LDAPS://192.0.2.1:636/DC=contoso,DC=local" });
+            controller.SetConnection(ValidRequest());
 
             var result = controller.ClearConnection();
 

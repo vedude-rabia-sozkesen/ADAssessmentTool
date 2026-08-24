@@ -53,14 +53,23 @@ namespace ADAssessment.WebAPI.Controllers
         [HttpPost]
         public IActionResult SetConnection([FromBody] AdConnectionRequest request)
         {
-            if (request == null || string.IsNullOrWhiteSpace(request.LdapPath))
+            if (request == null || string.IsNullOrWhiteSpace(request.DcHostname) || string.IsNullOrWhiteSpace(request.IpAddress))
             {
-                return BadRequest(new { Message = "Geçersiz bağlantı ayarı. LDAP Path/IP boş olamaz." });
+                return BadRequest(new { Message = "Geçersiz bağlantı ayarı. DC İsmi ve IP Adresi boş olamaz." });
+            }
+
+            // Kullanıcının LDAP path söz dizimini hiç bilmesine gerek kalmasın diye, "DC
+            // İsmi" (FQDN) + "IP Adresi" ayrı kutucuklarından path burada inşa edilir
+            // (bkz. LdapPathBuilder) - kullanıcı hiçbir zaman "LDAP://" veya "DC=..." yazmaz.
+            string? domainDn = LdapPathBuilder.TryBuildDomainDn(request.DcHostname.Trim());
+            if (domainDn == null)
+            {
+                return BadRequest(new { Message = "DC İsmi tam nitelikli (FQDN) olmalı, örn. DC01.sirketiniz.local - domain adının çıkarılabilmesi için en az bir nokta içermeli." });
             }
 
             var options = new LdapConnectionOptions
             {
-                LdapPath = request.LdapPath.Trim(),
+                LdapPath = LdapPathBuilder.BuildLdapPath(request.IpAddress.Trim(), domainDn),
                 Username = request.Username,
                 Password = request.Password,
                 UseLdaps = request.UseLdaps,

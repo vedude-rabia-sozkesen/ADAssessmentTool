@@ -62,22 +62,28 @@
                 <form id="adConnectionForm">
                     <div class="form-row">
                         <div class="form-group col-6">
-                            <label for="adLdapPath">LDAP Path / IP</label>
-                            <input type="text" id="adLdapPath" placeholder="LDAPS://10.0.0.1:636/DC=sirketiniz,DC=local" required>
+                            <label for="adDcHostname">DC İsmi (tam nitelikli - FQDN)</label>
+                            <input type="text" id="adDcHostname" placeholder="DC01.sirketiniz.local" required>
                         </div>
                         <div class="form-group col-6">
-                            <label for="adUsername">Kullanıcı Adı (düşük yetkili AD hesabı)</label>
-                            <input type="text" id="adUsername" placeholder="svc-adassessment">
+                            <label for="adIpAddress">IP Adresi</label>
+                            <input type="text" id="adIpAddress" placeholder="10.0.0.1" required>
                         </div>
                     </div>
 
                     <div class="form-row">
                         <div class="form-group col-6">
+                            <label for="adUsername">Kullanıcı Adı (düşük yetkili AD hesabı)</label>
+                            <input type="text" id="adUsername" placeholder="svc-adassessment">
+                        </div>
+                        <div class="form-group col-6">
                             <label for="adPassword">Parola</label>
                             <input type="password" id="adPassword" placeholder="••••••••">
                         </div>
+                    </div>
+
+                    <div class="form-row">
                         <div class="form-group col-6">
-                            <label>&nbsp;</label>
                             <div style="display:flex; align-items:center; gap:20px; height:38px;">
                                 <label style="display:flex; align-items:center; gap:6px; font-weight:normal; margin:0;">
                                     <input type="checkbox" id="adUseLdaps" checked> LDAPS Kullan
