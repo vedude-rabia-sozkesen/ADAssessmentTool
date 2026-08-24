@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
+using System;
 using ADAssessment.Infrastructure.Configuration;
 using ADAssessment.Infrastructure.Ldap;
 using ADAssessment.WebAPI.Models;
@@ -12,6 +14,8 @@ namespace ADAssessment.WebAPI.Controllers
     /// yapılandırılmasını sağlar. [Authorize] gereği önce dashboard girişi yapılmış
     /// olmalı - AD bağlantı ayarını sadece giriş yapmış bir analist değiştirebilir.
     /// Ayar sadece bellekte (IAdConnectionSettingsStore) tutulur, diske hiç yazılmaz.
+    /// Kaydetmeden önce gerçek bir bağlantı denemesiyle (ILdapConnectionTester) doğrulanır -
+    /// yanlış/çalışmayan bir ayar hiçbir zaman kaydedilmez.
     /// </summary>
     [Authorize(Roles = "SecurityAnalyst")]
     [ApiController]
@@ -20,10 +24,17 @@ namespace ADAssessment.WebAPI.Controllers
     public class AdConnectionController : ControllerBase
     {
         private readonly IAdConnectionSettingsStore _settingsStore;
+        private readonly ILdapConnectionTester _connectionTester;
+        private readonly ILogger<AdConnectionController> _logger;
 
-        public AdConnectionController(IAdConnectionSettingsStore settingsStore)
+        public AdConnectionController(
+            IAdConnectionSettingsStore settingsStore,
+            ILdapConnectionTester connectionTester,
+            ILogger<AdConnectionController> logger)
         {
             _settingsStore = settingsStore;
+            _connectionTester = connectionTester;
+            _logger = logger;
         }
 
         [HttpGet("status")]
@@ -58,9 +69,27 @@ namespace ADAssessment.WebAPI.Controllers
                 AllowUnsecureFallback = request.AllowUnsecureFallback
             };
 
+            // Kaydetmeden önce doğrulama: yanlış kullanıcı adı/parola, ulaşılamayan bir
+            // sunucu ya da hatalı bir LDAP Path hiçbir zaman sessizce kaydedilmez - kullanıcı
+            // formu doldururken hatasını hemen görür, taramayı çalıştırana kadar beklemez.
+            try
+            {
+                if (!_connectionTester.TestConnection(options))
+                {
+                    return BadRequest(new { Message = "AD bağlantısı doğrulanamadı. Bilgileri kontrol edip tekrar deneyin." });
+                }
+            }
+            catch (Exception ex)
+            {
+                // Ham hata mesajı (sunucu adı, dahili path, LDAP hata detayları içerebilir)
+                // client'a döndürülmez - AssessmentController.RunScan ile aynı ilke.
+                _logger.LogWarning(ex, "AD bağlantı ayarları doğrulanırken hata oluştu.");
+                return BadRequest(new { Message = "AD bağlantısı doğrulanamadı. Kullanıcı adı, parola, LDAP Path ve ağ erişimini kontrol edin." });
+            }
+
             _settingsStore.Set(options);
 
-            return Ok(new { Message = "AD bağlantı ayarları kaydedildi." });
+            return Ok(new { Message = "AD bağlantısı doğrulandı ve kaydedildi." });
         }
 
         [HttpPost("clear")]

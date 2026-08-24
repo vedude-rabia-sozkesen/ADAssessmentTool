@@ -138,6 +138,43 @@ namespace ADAssessment.Infrastructure.Ldap
         }
 
         /// <summary>
+        /// Bağlantı ayarlarının (LDAP Path, kullanıcı adı, parola) gerçekten çalışıp
+        /// çalışmadığını, GERÇEK bir veri sorgusu (kullanıcı/bilgisayar listesi vb.) hiç
+        /// çekmeden doğrular - domain kökünü Base scope'ta, tek bir öznitelik isteyerek
+        /// okur. AD Bağlantı Ayarları formunun "doğrulama ile bağlan" akışında
+        /// (AdConnectionController/LdapConnectionTester) kullanılır. Kullanıcı/bilgisayar
+        /// sorgularıyla AYNI ExecuteWithLdapsFallback mekanizmasını (Zero Trust denetimi +
+        /// LDAPS/389 fallback) paylaştığından, testin sonucu gerçek bir taramanın
+        /// yaşayacağı bağlantı davranışının birebir sadık bir provası olur.
+        /// </summary>
+        public bool TestConnection()
+        {
+            var results = ExecuteWithLdapsFallback<bool>((path, useLdaps) => QueryTestConnection(path, useLdaps));
+            return results.Count > 0 && results[0];
+        }
+
+        private IReadOnlyList<bool> QueryTestConnection(string path, bool useLdaps)
+        {
+            var authType = AuthenticationTypes.Secure;
+            authType |= useLdaps ? AuthenticationTypes.SecureSocketsLayer : AuthenticationTypes.Sealing;
+
+            using var rootEntry = string.IsNullOrEmpty(_options.Username)
+                ? new DirectoryEntry(path) { AuthenticationType = authType }
+                : new DirectoryEntry(path, _options.Username, _options.Password, authType);
+
+            using var searcher = new DirectorySearcher(rootEntry)
+            {
+                Filter = "(objectClass=*)",
+                SearchScope = SearchScope.Base,
+                ReferralChasing = ReferralChasingOption.None
+            };
+            searcher.PropertiesToLoad.Add("distinguishedName");
+
+            SearchResult? result = searcher.FindOne();
+            return new List<bool> { result != null };
+        }
+
+        /// <summary>
         /// Domain'in kök nesnesinin DACL'inde, DCSync haklarına (bkz. GetChangesRightGuid/
         /// GetChangesAllRightGuid) sahip, varsayılan olmayan asıl güvenlik prensiplerini
         /// tespit eder. Kullanıcı/bilgisayar sorgularından farklı olarak tek bir nesne

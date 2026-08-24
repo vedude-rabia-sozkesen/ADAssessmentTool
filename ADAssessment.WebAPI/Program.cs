@@ -110,6 +110,11 @@ builder.Services.AddScoped<ISmbProtocolSecurityChecker>(sp =>
     return new SmbProtocolSecurityChecker(options);
 });
 
+// AD Bağlantı Doğrulayıcısı (AdConnectionController'ın "kaydetmeden önce test et"
+// akışı için) - önceden çözülmüş bir bağlantı bilgisine ihtiyaç duymaz, her çağrıda
+// kendisine verilen (henüz kaydedilmemiş, formdan gelen) ayarları test eder.
+builder.Services.AddScoped<ILdapConnectionTester, LdapConnectionTester>();
+
 // Tüm Sabit C# Uyum Kurallarını DI'a Kaydet
 builder.Services.AddTransient<IComplianceRule, KerberoastingRule>();
 builder.Services.AddTransient<IComplianceRule, AsRepRoastingRule>();

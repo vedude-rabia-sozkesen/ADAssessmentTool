@@ -29,6 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const adConnectionForm = document.getElementById('adConnectionForm');
     const adConnectionAlert = document.getElementById('adConnectionAlert');
     const adConnectionCancelBtn = document.getElementById('adConnectionCancelBtn');
+    const adConnectionSubmitBtn = document.getElementById('adConnectionSubmitBtn');
     const adLdapPath = document.getElementById('adLdapPath');
     const adUsername = document.getElementById('adUsername');
     const adPassword = document.getElementById('adPassword');
@@ -703,6 +704,12 @@ document.addEventListener('DOMContentLoaded', () => {
             allowUnsecureFallback: adAllowInsecureFallback.checked
         };
 
+        // Doğrulama gerçek bir LDAP bağlantısı denediğinden birkaç saniye sürebilir
+        // (özellikle sunucu ulaşılamazsa) - buton devre dışı bırakılıp metni değiştirilir,
+        // aksi halde kullanıcı isteğin donduğunu düşünebilir.
+        adConnectionSubmitBtn.disabled = true;
+        adConnectionSubmitBtn.textContent = '🔄 Bağlantı Doğrulanıyor...';
+
         try {
             const res = await fetch(`${API_BASE}/adconnection`, {
                 method: 'POST',
@@ -722,6 +729,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (res.ok) {
                 adPassword.value = '';
+                adConnectionAlert.className = 'alert alert-success';
+                adConnectionAlert.textContent = '✅ ' + (data.message || 'AD bağlantısı doğrulandı ve kaydedildi.');
+                adConnectionAlert.classList.remove('hidden');
                 await checkAdConnectionStatus();
             } else {
                 adConnectionAlert.className = 'alert alert-danger';
@@ -732,6 +742,9 @@ document.addEventListener('DOMContentLoaded', () => {
             adConnectionAlert.className = 'alert alert-danger';
             adConnectionAlert.textContent = 'Bağlantı hatası: ' + err.message;
             adConnectionAlert.classList.remove('hidden');
+        } finally {
+            adConnectionSubmitBtn.disabled = false;
+            adConnectionSubmitBtn.textContent = '🔌 Bağlan ve Doğrula';
         }
     });
 
