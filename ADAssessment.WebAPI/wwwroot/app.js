@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let jwtToken = localStorage.getItem('jwt_token') || '';
     let editingRuleId = null;
     let currentRulesCache = [];
+    let isAdConfigured = false;
 
     // DOM Elementleri
     const loginSection = document.getElementById('loginSection');
@@ -116,6 +117,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 3. TARAMA BAŞLAT (POST /api/assessment/scan)
     runScanBtn.addEventListener('click', async () => {
+        if (!(await ensureAdConfiguredOrPrompt())) return;
+
         loadingSpinner.classList.remove('hidden');
         reportsList.innerHTML = '';
 
@@ -157,6 +160,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // sekmeden tarayıcının "Yazdır > PDF olarak kaydet" özelliğiyle PDF üretebilir - ayrı
     // bir PDF kütüphanesi/indirme uç noktası gerekmez.
     downloadReportBtn.addEventListener('click', async () => {
+        if (!(await ensureAdConfiguredOrPrompt())) return;
+
         loadingSpinner.classList.remove('hidden');
 
         try {
@@ -639,6 +644,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const status = await safeParseJson(res);
 
+            isAdConfigured = !!status.configured;
+
             if (status.configured) {
                 adConnectionBadge.className = 'badge badge-risk-low';
                 adConnectionBadge.textContent = `AD: ${status.username || '?'}@${status.ldapPath || '?'}`;
@@ -651,9 +658,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 adConnectionCancelBtn.classList.add('hidden');
             }
         } catch (err) {
+            isAdConfigured = false;
             adConnectionBadge.className = 'badge badge-risk-high';
             adConnectionBadge.textContent = 'AD: Durum Alınamadı';
         }
+    }
+
+    // AD bağlantısı yapılandırılmadan taramaya/rapora izin vermez - kartı açıp odaklar,
+    // isteği hiç göndermez. "Taramayı Başlat"a her tıklandığında son bilinen durumu
+    // tekrar sorar (kullanıcı arayı AD ayarını başka bir sekmede/oturumda değiştirmiş olabilir).
+    async function ensureAdConfiguredOrPrompt() {
+        await checkAdConnectionStatus();
+
+        if (!isAdConfigured) {
+            adConnectionCard.classList.remove('hidden');
+            adConnectionCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            adConnectionAlert.className = 'alert alert-danger';
+            adConnectionAlert.textContent = 'Taramayı başlatmadan önce AD bağlantı ayarlarını doldurup kaydedin.';
+            adConnectionAlert.classList.remove('hidden');
+            return false;
+        }
+
+        return true;
     }
 
     adConnectionBtn.addEventListener('click', () => {
