@@ -130,6 +130,13 @@ input:focus, select:focus, textarea:focus {
 .btn-sm { padding: 6px 12px; font-size: 12px; }
 .btn-outline { background: transparent; border: 1px solid var(--border-color); color: var(--text-muted); }
 .btn-outline:hover { color: #fff; border-color: #fff; }
+.btn:disabled, .btn:disabled:hover {
+    opacity: 0.4;
+    cursor: not-allowed;
+    background: var(--border-color);
+    color: var(--text-muted);
+    border-color: var(--border-color);
+}
 
 /* DASHBOARD LAYOUT */
 .dashboard-container {

@@ -652,22 +652,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 adConnectionBadge.textContent = `AD: ${status.username || '?'}@${status.ldapPath || '?'}`;
                 adConnectionCard.classList.add('hidden');
                 adConnectionCancelBtn.classList.remove('hidden');
+                adConnectionBtn.textContent = '⚙️ AD Bağlantısı';
+                adConnectionBtn.className = 'btn btn-sm btn-outline';
             } else {
                 adConnectionBadge.className = 'badge badge-risk-high';
                 adConnectionBadge.textContent = 'AD: Yapılandırılmadı';
                 adConnectionCard.classList.remove('hidden');
                 adConnectionCancelBtn.classList.add('hidden');
+                // Yapılandırılmamışken bu buton "ayar" değil, tek başına "bağlan" eylemidir -
+                // kullanıcının bunu belirgin/aksiyon alınabilir bir buton olarak görmesi için
+                // hem metni hem görsel stili (outline yerine dolu/primary) değişir.
+                adConnectionBtn.textContent = '🔌 AD\'ye Bağlan';
+                adConnectionBtn.className = 'btn btn-sm btn-primary';
             }
+
+            // AD yapılandırılmadan tarama/rapor butonları TAMAMEN devre dışı - sadece
+            // tıklanınca uyarı göstermek yerine, kullanıcının "neden aktif değil" diye
+            // düşünmesi engellenir, ne yapması gerektiği görsel olarak açık olur.
+            runScanBtn.disabled = !isAdConfigured;
+            downloadReportBtn.disabled = !isAdConfigured;
         } catch (err) {
             isAdConfigured = false;
             adConnectionBadge.className = 'badge badge-risk-high';
             adConnectionBadge.textContent = 'AD: Durum Alınamadı';
+            runScanBtn.disabled = true;
+            downloadReportBtn.disabled = true;
         }
     }
 
     // AD bağlantısı yapılandırılmadan taramaya/rapora izin vermez - kartı açıp odaklar,
-    // isteği hiç göndermez. "Taramayı Başlat"a her tıklandığında son bilinen durumu
-    // tekrar sorar (kullanıcı arayı AD ayarını başka bir sekmede/oturumda değiştirmiş olabilir).
+    // isteği hiç göndermez. Butonlar zaten disabled olduğundan bu normalde tetiklenmez -
+    // son bilinen durumla disabled durumu arasında bir an için tutarsızlık olursa
+    // (ör. iki sekmede aynı anda çalışıyorsa) son bir güvenlik katmanı olarak kalır.
     async function ensureAdConfiguredOrPrompt() {
         await checkAdConnectionStatus();
 
@@ -684,7 +700,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     adConnectionBtn.addEventListener('click', () => {
-        adConnectionCard.classList.toggle('hidden');
+        // Bilerek toggle DEĞİL - kart zaten açıksa "kapatma" gibi görünen kafa karıştırıcı
+        // bir davranış yerine, her tıklama kartı açık gösterip üstüne kaydırır. Kartı
+        // kapatmak için (sadece ayar zaten yapılandırılmışken görünen) İptal butonu var.
+        adConnectionCard.classList.remove('hidden');
+        adConnectionCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
 
     adConnectionCancelBtn.addEventListener('click', () => {
