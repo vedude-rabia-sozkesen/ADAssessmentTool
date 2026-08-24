@@ -373,8 +373,8 @@ namespace ADAssessment.Infrastructure.Ldap
         }
 
         /// <summary>
-        /// Zaten şema+host+port içeren tam bir LDAP yolunu (ör. "LDAP://192.168.92.100:636/
-        /// DC=lab,DC=local") alıp, sonundaki DN kısmını verilen yeni DN ile değiştirir (ör.
+        /// Zaten şema+host+port içeren tam bir LDAP yolunu (ör. "LDAP://192.0.2.1:636/
+        /// DC=contoso,DC=local") alıp, sonundaki DN kısmını verilen yeni DN ile değiştirir (ör.
         /// "RootDSE" veya farklı bir konteynerin DN'i). ExtractBaseDn'in (LdapProtocolSecurityChecker)
         /// tersi işlemi yapar - public/saf/I-O'suz olduğundan doğrudan birim testiyle
         /// doğrulanabilir.

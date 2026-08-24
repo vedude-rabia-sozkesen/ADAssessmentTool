@@ -62,7 +62,12 @@ namespace ADAssessment.Infrastructure.Configuration
 
             return new LdapConnectionOptions
             {
-                LdapPath = !string.IsNullOrWhiteSpace(envPath) ? envPath : "LDAPS://192.168.92.100:636/DC=lab,DC=local",
+                // CLAUDE.md: gerçek sunucu/IP/domain adı asla kod içine hardcode edilmez.
+                // AD_ASSESSMENT_LDAP_PATH tanımlı değilse ve dashboard'dan da hiçbir ayar
+                // girilmemişse LdapPath bilerek BOŞ bırakılır - araç, hangi AD'ye
+                // bağlanacağını açıkça öğrenmeden hiçbir gerçek adrese sessizce
+                // bağlanmaz; sonraki sorgu net bir hatayla başarısız olur.
+                LdapPath = !string.IsNullOrWhiteSpace(envPath) ? envPath : string.Empty,
                 Username = envUsername,
                 Password = envPassword,
                 UseLdaps = useLdaps,

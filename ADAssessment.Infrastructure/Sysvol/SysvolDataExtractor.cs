@@ -85,8 +85,8 @@ namespace ADAssessment.Infrastructure.Sysvol
         }
 
         /// <summary>
-        /// LDAP path'inden ("LDAP://192.168.92.100/DC=lab,DC=local") SYSVOL erişimi
-        /// için gereken sunucu adresini ve domain DNS adını ("lab.local") çıkarır.
+        /// LDAP path'inden ("LDAP://192.0.2.1/DC=contoso,DC=local") SYSVOL erişimi
+        /// için gereken sunucu adresini ve domain DNS adını ("contoso.local") çıkarır.
         /// Public: saf/I-O'suz bir yardımcı fonksiyon olduğundan doğrudan birim
         /// testiyle doğrulanabilir.
         /// </summary>

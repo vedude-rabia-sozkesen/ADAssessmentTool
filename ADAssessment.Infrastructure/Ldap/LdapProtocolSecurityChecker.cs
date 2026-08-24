@@ -44,9 +44,9 @@ namespace ADAssessment.Infrastructure.Ldap
         }
 
         /// <summary>
-        /// LDAP path'inden ("LDAP://192.168.92.100/DC=lab,DC=local") arama tabanı
-        /// (base DN, "DC=lab,DC=local") kısmını çıkarır - SysvolDataExtractor.
-        /// ParseServerAndDomain'in nokta ayraçlı ("lab.local") formu döndürmesinin
+        /// LDAP path'inden ("LDAP://192.0.2.1/DC=contoso,DC=local") arama tabanı
+        /// (base DN, "DC=contoso,DC=local") kısmını çıkarır - SysvolDataExtractor.
+        /// ParseServerAndDomain'in nokta ayraçlı ("contoso.local") formu döndürmesinin
         /// aksine, burada LDAP arama isteğine doğrudan verilebilecek DN formu gerekiyor.
         /// Public: saf/I-O'suz bir yardımcı fonksiyon olduğundan doğrudan birim testiyle
         /// doğrulanabilir (bkz. SysvolDataExtractor.ParseServerAndDomain - aynı desen).

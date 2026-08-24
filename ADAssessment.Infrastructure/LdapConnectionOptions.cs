@@ -9,7 +9,7 @@ namespace ADAssessment.Infrastructure.Ldap
     public sealed class LdapConnectionOptions
     {
         /// <summary>
-        /// Bağlanılacak LDAP/LDAPS adresi. (Örn: "LDAP://192.168.92.100/DC=lab,DC=local")
+        /// Bağlanılacak LDAP/LDAPS adresi. (Örn: "LDAP://192.0.2.1/DC=contoso,DC=local")
         /// </summary>
         public string LdapPath { get; set; } = string.Empty;
 
@@ -68,7 +68,7 @@ namespace ADAssessment.Infrastructure.Ldap
                 }
 
                 // Port numarası açıkça belirtilmemişse otomatik olarak :636 ekle
-                // Örn: LDAP://192.168.92.100/DC=lab,DC=local -> LDAP://192.168.92.100:636/DC=lab,DC=local
+                // Örn: LDAP://192.0.2.1/DC=contoso,DC=local -> LDAP://192.0.2.1:636/DC=contoso,DC=local
                 int slashIndex = formatted.IndexOf('/', 7); // "LDAP://" sonrasındaki ilk '/'
                 if (slashIndex > 7)
                 {
