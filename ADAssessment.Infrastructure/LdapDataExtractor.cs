@@ -86,15 +86,19 @@ namespace ADAssessment.Infrastructure.Ldap
         private bool? _ldapsUnavailableThisScan;
 
         /// <summary>
-        /// Konfigürasyon nesnesi ile LDAPS ve gMSA uyumlu kurucu metod.
+        /// Konfigürasyon nesnesi ile LDAPS ve gMSA uyumlu kurucu metod. LdapPath boş
+        /// olsa bile (ör. AD henüz dashboard'dan yapılandırılmamışsa) burada HATA
+        /// FIRLATILMAZ - bilerek. WebAPI'de bu sınıf DI tarafından controller'ın kendi
+        /// kurucu metodunda (constructor injection) inşa edilir; bu, controller'ın Execute
+        /// eylem gövdesindeki try/catch'e HİÇ girmeden çalışır - burada fırlatılan bir hata
+        /// kullanıcıya çirkin/yakalanmamış bir 500 sayfası olarak yansırdı (gerçekten
+        /// yaşanmış bir regresyon). Bunun yerine boş/geçersiz ayar, ilk gerçek LDAP
+        /// sorgusunda (GetActiveUsers vb.) doğal olarak başarısız olur - o noktada zaten
+        /// her çağıran kendi try/catch'iyle bu hatayı temiz bir mesaja çeviriyor.
         /// </summary>
         public LdapDataExtractor(LdapConnectionOptions options)
         {
             ArgumentNullException.ThrowIfNull(options);
-            if (string.IsNullOrWhiteSpace(options.LdapPath))
-            {
-                throw new ArgumentException("LDAP path boş olamaz.", nameof(options));
-            }
             _options = options;
         }
 
