@@ -311,6 +311,44 @@ namespace ADAssessment.Tests.WebAPI
         }
 
         [Fact]
+        public void RunScan_DynamicComputerCategoryRule_ExecutesAgainstComputersNotUsers()
+        {
+            // Faz 2 (No-Code'un tüm veri kategorilerine açılması) düzeltmesinin asıl
+            // regresyon testi: eskiden TÜM No-Code JSON kuralları (kategorisi ne olursa
+            // olsun) sadece 'users' listesine karşı çalıştırılıyordu. Bu test, DataCategory
+            // "Computer" olan bir JSON dosyasının gerçekten computers listesine karşı
+            // çalıştığını - ve tarayıcıdaki eşleşen bilgisayarın rapora yansıdığını - doğrular.
+            Directory.CreateDirectory(_emptyRulesFolder);
+            string ruleJson = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                ruleId = "TEST-DYNAMIC-COMPUTER",
+                name = "Obsolete OS (No-Code)",
+                description = "Test-only dynamic computer rule.",
+                dataCategory = "Computer",
+                targetProperty = "OperatingSystem",
+                @operator = "Contains",
+                value = "2012",
+                riskLevel = "High",
+                remediation = "Upgrade the OS."
+            });
+            File.WriteAllText(Path.Combine(_emptyRulesFolder, "TEST-DYNAMIC-COMPUTER.json"), ruleJson);
+
+            var users = new List<AdUserAccount> { new AdUserAccount { SamAccountName = "jdoe", UserAccountControl = 0x0200 } };
+            var computers = new List<AdComputerAccount> { new AdComputerAccount { SamAccountName = "OLDPC$", OperatingSystem = "Windows Server 2012 R2" } };
+            var extractor = FakeLdapDataExtractor.Returning(users, computers);
+            var auditLogger = new FakeAuditLogger();
+            var controller = MakeController(extractor, auditLogger);
+
+            var result = controller.RunScan();
+
+            var okResult = Assert.IsType<OkObjectResult>(result);
+            var response = Assert.IsType<ScanResultResponse>(okResult.Value);
+            var dynamicRuleResult = Assert.Single(response.Results, r => r.RuleId == "TEST-DYNAMIC-COMPUTER");
+            Assert.True(dynamicRuleResult.IsVulnerable);
+            Assert.Contains(dynamicRuleResult.AffectedObjects, a => a.Contains("OLDPC$"));
+        }
+
+        [Fact]
         public void GetExecutiveReport_LdapThrows_ReturnsGenericErrorWithoutLeakingDetails()
         {
             const string sensitiveDetail = "System.DirectoryServices.DirectoryEntry.Bind failed against DC=internal,DC=corp,DC=example";

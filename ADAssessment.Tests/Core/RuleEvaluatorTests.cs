@@ -216,6 +216,70 @@ namespace ADAssessment.Tests.Core
         }
 
         [Fact]
+        public void IsVulnerable_ComputerCategory_EvaluatesAdComputerAccountViaReflection()
+        {
+            // RuleEvaluator artık AdUserAccount'a sabitlenmiş bir switch değil, reflection
+            // kullandığından, aynı motor hiçbir kod değişikliği olmadan AdComputerAccount
+            // gibi tamamen farklı bir tipin özniteliklerini de çözebilmeli - No-Code
+            // genelleştirmesinin temel iddiasının regresyon testi.
+            var staleComputer = new AdComputerAccount { SamAccountName = "OLDPC$", OperatingSystem = "Windows Server 2012 R2" };
+            var modernComputer = new AdComputerAccount { SamAccountName = "NEWPC$", OperatingSystem = "Windows Server 2022" };
+            var rule = new JsonRuleDefinition
+            {
+                RuleId = "TEST-COMPUTER",
+                DataCategory = RuleDataCategory.Computer,
+                TargetProperty = "OperatingSystem",
+                Operator = "Contains",
+                Value = "2012"
+            };
+
+            Assert.True(RuleEvaluator.IsVulnerable(staleComputer, rule));
+            Assert.False(RuleEvaluator.IsVulnerable(modernComputer, rule));
+        }
+
+        [Fact]
+        public void IsVulnerable_ComputerCategory_DisabledAccountFilterDoesNotApply()
+        {
+            // Kullanıcıya özgü "disabled hesabı atla" ön-filtresi SADECE User
+            // kategorisinde çalışmalı - bir bilgisayar hesabının IsEnabled durumu
+            // (UserAccountControl ACCOUNTDISABLE biti) burada devre dışı bırakılmamalı.
+            var disabledComputer = new AdComputerAccount { SamAccountName = "DISABLEDPC$", UserAccountControl = 0x0202, OperatingSystem = "Windows Server 2012" };
+            var rule = new JsonRuleDefinition
+            {
+                RuleId = "TEST-COMPUTER-DISABLED",
+                DataCategory = RuleDataCategory.Computer,
+                TargetProperty = "OperatingSystem",
+                Operator = "Contains",
+                Value = "2012"
+            };
+
+            Assert.True(RuleEvaluator.IsVulnerable(disabledComputer, rule));
+        }
+
+        [Fact]
+        public void BitwiseAND_TrustCategory_EvaluatesTrustAttributesGenerically()
+        {
+            // BitwiseAND artık hardcoded UserAccountControl değil, hangi TargetProperty
+            // çözümlenmişse onu kullanıyor - bu, AdTrustRelationship.TrustAttributes gibi
+            // BAŞKA bir bit-bayrak alanında da BitwiseAND'in çalışabildiğini kanıtlar
+            // (genelleştirmenin sağladığı gerçek fayda, sadece bir yeniden yapılandırma değil).
+            var quarantined = new AdTrustRelationship { TrustPartner = "partner.example.com", TrustAttributes = 0x4 }; // QUARANTINED (SID filtering ON)
+            var notQuarantined = new AdTrustRelationship { TrustPartner = "partner2.example.com", TrustAttributes = 0x0 };
+            var rule = new JsonRuleDefinition
+            {
+                RuleId = "TEST-TRUST",
+                DataCategory = RuleDataCategory.Trust,
+                TargetProperty = "TrustAttributes",
+                Operator = "BitwiseAND",
+                Value = 4,
+                Condition = "EqualsZero" // SID filtering KAPALIYSA zafiyetli
+            };
+
+            Assert.True(RuleEvaluator.IsVulnerable(notQuarantined, rule));
+            Assert.False(RuleEvaluator.IsVulnerable(quarantined, rule));
+        }
+
+        [Fact]
         public void NestedAndOrConditions_MirrorsAD012Structure()
         {
             // AD-012.json: IsAdminCountSet == true AND (PasswordNeverExpires OR stale-90-days)

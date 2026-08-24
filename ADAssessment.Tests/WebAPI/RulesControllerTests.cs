@@ -208,6 +208,86 @@ namespace ADAssessment.Tests.WebAPI
             Assert.IsType<OkObjectResult>(result);
         }
 
+        [Fact]
+        public void GetCategories_ReturnsAllNineRegisteredCategories()
+        {
+            var controller = MakeController(_tempRulesFolder);
+
+            var result = controller.GetCategories();
+
+            var okResult = Assert.IsType<OkObjectResult>(result);
+            string json = System.Text.Json.JsonSerializer.Serialize(okResult.Value);
+            Assert.Contains(RuleDataCategory.User, json);
+            Assert.Contains(RuleDataCategory.Computer, json);
+            Assert.Contains(RuleDataCategory.Trust, json);
+        }
+
+        [Fact]
+        public void GetSchema_KnownCategory_ReturnsPropertyNames()
+        {
+            var controller = MakeController(_tempRulesFolder);
+
+            var result = controller.GetSchema(RuleDataCategory.Computer);
+
+            var okResult = Assert.IsType<OkObjectResult>(result);
+            var properties = Assert.IsAssignableFrom<System.Collections.Generic.IReadOnlyList<string>>(okResult.Value);
+            Assert.Contains("OperatingSystem", properties);
+        }
+
+        [Fact]
+        public void GetSchema_UnknownCategory_ReturnsBadRequest()
+        {
+            var controller = MakeController(_tempRulesFolder);
+
+            var result = controller.GetSchema("NotARealCategory");
+
+            Assert.IsType<BadRequestObjectResult>(result);
+        }
+
+        [Fact]
+        public void CreateJsonRule_UnknownDataCategory_ReturnsBadRequest()
+        {
+            var controller = MakeController(_tempRulesFolder);
+            var definition = SimpleDefinition("TEST-RULES-CONTROLLER");
+            definition.DataCategory = "NotARealCategory";
+
+            var result = controller.CreateJsonRule(definition);
+
+            Assert.IsType<BadRequestObjectResult>(result);
+            Assert.False(File.Exists(Path.Combine(_tempRulesFolder, "TEST-RULES-CONTROLLER.json")));
+        }
+
+        [Fact]
+        public void CreateJsonRule_TargetPropertyNotInCategory_ReturnsBadRequest()
+        {
+            // Yanlış yazılmış bir alan adının (ör. "SamAcountName") sessizce hiç eşleşmeyen
+            // bir kural olarak kaydedilmesi yerine kayıt anında reddedilmesinin regresyon testi.
+            var controller = MakeController(_tempRulesFolder);
+            var definition = SimpleDefinition("TEST-RULES-CONTROLLER");
+            definition.DataCategory = RuleDataCategory.Computer;
+            definition.TargetProperty = "ThisPropertyDoesNotExist";
+
+            var result = controller.CreateJsonRule(definition);
+
+            Assert.IsType<BadRequestObjectResult>(result);
+            Assert.False(File.Exists(Path.Combine(_tempRulesFolder, "TEST-RULES-CONTROLLER.json")));
+        }
+
+        [Fact]
+        public void CreateJsonRule_ValidComputerCategoryAndProperty_Succeeds()
+        {
+            var controller = MakeController(_tempRulesFolder);
+            var definition = SimpleDefinition("TEST-RULES-CONTROLLER");
+            definition.DataCategory = RuleDataCategory.Computer;
+            definition.TargetProperty = "OperatingSystem";
+            definition.Operator = "Contains";
+            definition.Value = "2012";
+
+            var result = controller.CreateJsonRule(definition);
+
+            Assert.IsType<CreatedAtActionResult>(result);
+        }
+
         private sealed class FakeStaticRule : IComplianceRule
         {
             public FakeStaticRule(string ruleId) => RuleId = ruleId;

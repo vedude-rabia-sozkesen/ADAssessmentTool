@@ -222,58 +222,74 @@ namespace ADAssessment.WebAPI.Controllers
                 _logger.LogWarning(trustEx, "Trust ilişkileri kontrol edilemedi, ilgili kurallar bu taramada atlandı.");
             }
 
-            var rules = new List<IComplianceRule>(_staticRules);
-            var dynamicRules = _jsonRepository.LoadRules();
-            rules.AddRange(dynamicRules);
+            // No-Code (JSON) kurallar artık sadece kullanıcılara karşı çalışmıyor -
+            // DynamicComplianceRule.DataCategory'ye göre 9 kategorinin doğru olanına
+            // yönlendiriliyor. DynamicFor() her kategori için ilgili dinamik kuralları
+            // filtreler; IEnumerable<T> kovaryansı (ör. IEnumerable<IComputerComplianceRule>)
+            // Concat ile doğrudan birleşemediğinden .Cast<IComplianceRule>() ile
+            // ortak tipe indirgeniyor.
+            var dynamicRules = _jsonRepository.LoadRules().OfType<DynamicComplianceRule>().ToList();
+            IEnumerable<IComplianceRule> DynamicFor(string category) =>
+                dynamicRules.Where(r => string.Equals(r.DataCategory, category, StringComparison.OrdinalIgnoreCase));
+
+            var userRules = _staticRules.Concat(DynamicFor(RuleDataCategory.User)).ToList();
+            var groupPolicyRules = _groupPolicyRules.Cast<IComplianceRule>().Concat(DynamicFor(RuleDataCategory.GroupPolicy)).ToList();
+            var computerRules = _computerRules.Cast<IComplianceRule>().Concat(DynamicFor(RuleDataCategory.Computer)).ToList();
+            var ldapProtocolRules = _ldapProtocolRules.Cast<IComplianceRule>().Concat(DynamicFor(RuleDataCategory.LdapProtocol)).ToList();
+            var smbProtocolRules = _smbProtocolRules.Cast<IComplianceRule>().Concat(DynamicFor(RuleDataCategory.SmbProtocol)).ToList();
+            var dcSyncRules = _dcSyncRules.Cast<IComplianceRule>().Concat(DynamicFor(RuleDataCategory.DcSync)).ToList();
+            var domainFunctionalLevelRules = _domainFunctionalLevelRules.Cast<IComplianceRule>().Concat(DynamicFor(RuleDataCategory.DomainFunctionalLevel)).ToList();
+            var forestRules = _forestRules.Cast<IComplianceRule>().Concat(DynamicFor(RuleDataCategory.ForestOptionalFeature)).ToList();
+            var trustRules = _trustRules.Cast<IComplianceRule>().Concat(DynamicFor(RuleDataCategory.Trust)).ToList();
 
             var results = new List<RuleResult>();
 
-            foreach (var rule in rules)
+            foreach (var rule in userRules)
             {
                 results.Add(rule.Execute(users));
             }
 
-            foreach (var rule in _groupPolicyRules)
+            foreach (var rule in groupPolicyRules)
             {
                 results.Add(rule.Execute(groupPolicies!));
             }
 
-            foreach (var rule in _computerRules)
+            foreach (var rule in computerRules)
             {
                 results.Add(rule.Execute(computers!));
             }
 
-            foreach (var rule in _ldapProtocolRules)
+            foreach (var rule in ldapProtocolRules)
             {
                 results.Add(rule.Execute(ldapProtocolSecurity!));
             }
 
-            foreach (var rule in _smbProtocolRules)
+            foreach (var rule in smbProtocolRules)
             {
                 results.Add(rule.Execute(smbProtocolSecurity!));
             }
 
-            foreach (var rule in _dcSyncRules)
+            foreach (var rule in dcSyncRules)
             {
                 results.Add(rule.Execute(dcSyncRights!));
             }
 
-            foreach (var rule in _domainFunctionalLevelRules)
+            foreach (var rule in domainFunctionalLevelRules)
             {
                 results.Add(rule.Execute(domainFunctionalLevel!));
             }
 
-            foreach (var rule in _forestRules)
+            foreach (var rule in forestRules)
             {
                 results.Add(rule.Execute(forestFeatures!));
             }
 
-            foreach (var rule in _trustRules)
+            foreach (var rule in trustRules)
             {
                 results.Add(rule.Execute(trusts!));
             }
 
-            int totalRulesExecuted = rules.Count + _groupPolicyRules.Count() + _computerRules.Count() + _ldapProtocolRules.Count() + _smbProtocolRules.Count() + _dcSyncRules.Count() + _domainFunctionalLevelRules.Count() + _forestRules.Count() + _trustRules.Count();
+            int totalRulesExecuted = userRules.Count + groupPolicyRules.Count + computerRules.Count + ldapProtocolRules.Count + smbProtocolRules.Count + dcSyncRules.Count + domainFunctionalLevelRules.Count + forestRules.Count + trustRules.Count;
 
             string initiator = User.Identity?.Name ?? "WebAPI_User";
             _auditLogger.LogAssessment(initiator, users.Count, results);
@@ -287,15 +303,15 @@ namespace ADAssessment.WebAPI.Controllers
             // Otomatik Compliance Mapping: her bulgunun (finding) hangi çerçeve
             // kontrolüne karşılık geldiği, SIEM tüketicisinin ayrıca /api/rules'a
             // bakmasına gerek kalmadan doğrudan sonuçta görünsün diye burada eklenir.
-            var ruleMetadataById = rules
-                .Concat(_groupPolicyRules)
-                .Concat(_computerRules)
-                .Concat(_ldapProtocolRules)
-                .Concat(_smbProtocolRules)
-                .Concat(_dcSyncRules)
-                .Concat(_domainFunctionalLevelRules)
-                .Concat(_forestRules)
-                .Concat(_trustRules)
+            var ruleMetadataById = userRules
+                .Concat(groupPolicyRules)
+                .Concat(computerRules)
+                .Concat(ldapProtocolRules)
+                .Concat(smbProtocolRules)
+                .Concat(dcSyncRules)
+                .Concat(domainFunctionalLevelRules)
+                .Concat(forestRules)
+                .Concat(trustRules)
                 .GroupBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 

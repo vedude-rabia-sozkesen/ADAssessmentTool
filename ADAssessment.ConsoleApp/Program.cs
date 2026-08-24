@@ -178,19 +178,26 @@ namespace ADAssessment.ConsoleApp
                     new AesEncryptionNotSupportedRule() // AD-030
                 };
 
-                // No-Code JSON Kural Deposundan Dinamik Kuralları Yükleme (No-Code Rule Engine)
+                // No-Code JSON Kural Deposundan Dinamik Kuralları Yükleme (No-Code Rule Engine).
+                // Her dinamik kural artık kendi DataCategory'sini taşıyor (bkz. RuleDataCategory) -
+                // rules listesine körü körüne eklenmek yerine DynamicFor() ile doğru kategoriye
+                // yönlendiriliyor (aşağıdaki sıralama bloğunda kullanılıyor).
                 var jsonRepository = new JsonRuleRepository();
-                var dynamicRules = jsonRepository.LoadRules();
-                rules.AddRange(dynamicRules);
+                var dynamicRules = jsonRepository.LoadRules().OfType<DynamicComplianceRule>().ToList();
+                IEnumerable<IComplianceRule> DynamicFor(string category) =>
+                    dynamicRules.Where(r => string.Equals(r.DataCategory, category, StringComparison.OrdinalIgnoreCase));
 
-                var groupPolicyRules = new List<IGroupPolicyComplianceRule>
+                // Bu 8 liste, marker interface (ör. IGroupPolicyComplianceRule) yerine ortak
+                // IComplianceRule tipiyle tutuluyor - aksi halde aşağıda dinamik (No-Code)
+                // kuralların Concat ile eklenmesi tip uyuşmazlığından derlenmezdi.
+                var groupPolicyRules = new List<IComplianceRule>
                 {
                     new WeakPasswordPolicyRule(),                    // AD-013
                     new ReversiblePasswordEncryptionPolicyRule(),    // AD-014
                     new WeakLockoutPolicyRule()                      // AD-015
                 };
 
-                var computerRules = new List<IComputerComplianceRule>
+                var computerRules = new List<IComplianceRule>
                 {
                     new StaleComputerAccountsRule(),      // AD-016
                     new ObsoleteOperatingSystemRule(),    // AD-017
@@ -201,34 +208,34 @@ namespace ADAssessment.ConsoleApp
                     new MissingLapsProtectionRule()                          // AD-033
                 };
 
-                var ldapProtocolRules = new List<ILdapProtocolComplianceRule>
+                var ldapProtocolRules = new List<IComplianceRule>
                 {
                     new LdapSigningNotEnforcedRule(),         // AD-019
                     new LdapChannelBindingNotEnforcedRule(),  // AD-020
                     new AnonymousLdapBindAllowedRule()        // AD-021
                 };
 
-                var smbProtocolRules = new List<ISmbProtocolComplianceRule>
+                var smbProtocolRules = new List<IComplianceRule>
                 {
                     new AnonymousSmbAccessAllowedRule()       // AD-022
                 };
 
-                var dcSyncRules = new List<IDcSyncComplianceRule>
+                var dcSyncRules = new List<IComplianceRule>
                 {
                     new UnexpectedDcSyncRightsRule()          // AD-023
                 };
 
-                var domainFunctionalLevelRules = new List<IDomainFunctionalLevelComplianceRule>
+                var domainFunctionalLevelRules = new List<IComplianceRule>
                 {
                     new ObsoleteDomainFunctionalLevelRule()   // AD-026
                 };
 
-                var forestRules = new List<IForestComplianceRule>
+                var forestRules = new List<IComplianceRule>
                 {
                     new RecycleBinNotEnabledRule()            // AD-031
                 };
 
-                var trustRules = new List<ITrustComplianceRule>
+                var trustRules = new List<IComplianceRule>
                 {
                     new SidFilteringDisabledRule()            // AD-032
                 };
@@ -270,17 +277,19 @@ namespace ADAssessment.ConsoleApp
                     Console.WriteLine();
                 }
 
-                // Kurallar farklı kaynaklardan (statik, JSON dosyaları) geldiğinden,
-                // yazdırma sırası da RuleId'ye göre sıralanır.
-                rules = rules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
-                groupPolicyRules = groupPolicyRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
-                computerRules = computerRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
-                ldapProtocolRules = ldapProtocolRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
-                smbProtocolRules = smbProtocolRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
-                dcSyncRules = dcSyncRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
-                domainFunctionalLevelRules = domainFunctionalLevelRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
-                forestRules = forestRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
-                trustRules = trustRules.OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
+                // Kurallar farklı kaynaklardan (statik, JSON dosyaları) geldiğinden, yazdırma
+                // sırası da RuleId'ye göre sıralanır. Her liste kendi kategorisine ait dinamik
+                // (No-Code) kurallarla burada birleştiriliyor - AssessmentController'daki
+                // (WebAPI) DynamicFor deseniyle birebir aynı mantık.
+                rules = rules.Concat(DynamicFor(RuleDataCategory.User)).OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
+                groupPolicyRules = groupPolicyRules.Concat(DynamicFor(RuleDataCategory.GroupPolicy)).OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
+                computerRules = computerRules.Concat(DynamicFor(RuleDataCategory.Computer)).OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
+                ldapProtocolRules = ldapProtocolRules.Concat(DynamicFor(RuleDataCategory.LdapProtocol)).OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
+                smbProtocolRules = smbProtocolRules.Concat(DynamicFor(RuleDataCategory.SmbProtocol)).OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
+                dcSyncRules = dcSyncRules.Concat(DynamicFor(RuleDataCategory.DcSync)).OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
+                domainFunctionalLevelRules = domainFunctionalLevelRules.Concat(DynamicFor(RuleDataCategory.DomainFunctionalLevel)).OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
+                forestRules = forestRules.Concat(DynamicFor(RuleDataCategory.ForestOptionalFeature)).OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
+                trustRules = trustRules.Concat(DynamicFor(RuleDataCategory.Trust)).OrderBy(r => r.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
 
                 foreach (var rule in rules)
                 {

@@ -59,7 +59,8 @@ namespace ADAssessment.WebAPI.Controllers
                     FrameworkMapping = rule.FrameworkMapping,
                     Iso27001Mapping = rule.Iso27001Mapping,
                     Source = "Static",
-                    IsEditable = false
+                    IsEditable = false,
+                    DataCategory = InferStaticRuleCategory(rule)
                 });
             }
 
@@ -78,12 +79,46 @@ namespace ADAssessment.WebAPI.Controllers
                     Iso27001Mapping = rule.Iso27001Mapping,
                     Source = "JsonFile",
                     IsEditable = !hasNestedConditions,
-                    Definition = dynamicRule.Definition
+                    Definition = dynamicRule.Definition,
+                    DataCategory = dynamicRule.DataCategory
                 });
             }
 
             var orderedItems = items.OrderBy(i => i.RuleId, StringComparer.OrdinalIgnoreCase).ToList();
             return Ok(orderedItems);
+        }
+
+        /// <summary>
+        /// Frontend'in "Hedef Veri Kategorisi" dropdown'ını (optgroup'larla) doldurması için.
+        /// RuleDataCategory tek doğruluk kaynağı olduğundan buradaki liste asla backend'in
+        /// gerçekte desteklediği kategorilerden sapamaz.
+        /// </summary>
+        [HttpGet("categories")]
+        public IActionResult GetCategories()
+        {
+            var result = RuleDataCategory.AllCategories.Select(c => new
+            {
+                Value = c,
+                Label = RuleDataCategory.GetDisplayLabel(c),
+                Group = RuleDataCategory.GetGroupLabel(c)
+            });
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// Frontend'in "Hedef Özellik" dropdown'ını seçilen kategoriye göre dinamik olarak
+        /// doldurması için - reflection ile üretilir, bu yüzden RuleEvaluator'ın gerçekte
+        /// çözebildiği alanlarla birebir aynı kaynaktan gelir (drift imkansız).
+        /// </summary>
+        [HttpGet("schema/{category}")]
+        public IActionResult GetSchema(string category)
+        {
+            if (!RuleDataCategory.IsValid(category))
+            {
+                return BadRequest(new { Message = "Bilinmeyen veri kategorisi." });
+            }
+
+            return Ok(RuleDataCategory.GetPropertyNames(category));
         }
 
         [HttpPost]
@@ -97,6 +132,11 @@ namespace ADAssessment.WebAPI.Controllers
             if (_staticRules.Any(r => string.Equals(r.RuleId, ruleDefinition.RuleId, StringComparison.OrdinalIgnoreCase)))
             {
                 return BadRequest(new { Message = "Bu RuleId sabit (derlenmiş) bir kural tarafından kullanılıyor, No-Code kural olarak eklenemez." });
+            }
+
+            if (!ValidateDataCategoryAndProperty(ruleDefinition, out IActionResult? categoryError))
+            {
+                return categoryError!;
             }
 
             string filePath = ResolveRuleFilePath(ruleDefinition.RuleId, out IActionResult? pathError);
@@ -134,6 +174,11 @@ namespace ADAssessment.WebAPI.Controllers
                 return BadRequest(new { Message = "Geçersiz kural tanımı." });
             }
 
+            if (!ValidateDataCategoryAndProperty(ruleDefinition, out IActionResult? categoryError))
+            {
+                return categoryError!;
+            }
+
             // RuleId her zaman route'tan gelen değere sabitlenir; body'den farklı bir
             // RuleId gönderilerek dosya adının/kimlik doğrulamasının atlatılması engellenir.
             ruleDefinition.RuleId = ruleId;
@@ -168,6 +213,88 @@ namespace ADAssessment.WebAPI.Controllers
             System.IO.File.Delete(filePath);
 
             return Ok(new { Message = "No-Code JSON kuralı başarıyla silindi." });
+        }
+
+        /// <summary>
+        /// Bir sabit (derlenmiş) kuralın hangi marker interface'i (bkz. RuleDataCategory
+        /// registry'sindeki tiplerle eşleşen IComputerComplianceRule, ITrustComplianceRule
+        /// vb.) implemente ettiğine bakarak "Aktif Kurallar" listesinde göstermek için bir
+        /// kategori tahmin eder. Hiçbiriyle eşleşmezse (kurucu ctor'daki temel
+        /// IEnumerable&lt;IComplianceRule&gt; grubu) varsayılan "User" kabul edilir.
+        /// </summary>
+        private static string InferStaticRuleCategory(IComplianceRule rule)
+        {
+            if (rule is IComputerComplianceRule) return RuleDataCategory.Computer;
+            if (rule is IGroupPolicyComplianceRule) return RuleDataCategory.GroupPolicy;
+            if (rule is ILdapProtocolComplianceRule) return RuleDataCategory.LdapProtocol;
+            if (rule is ISmbProtocolComplianceRule) return RuleDataCategory.SmbProtocol;
+            if (rule is IDcSyncComplianceRule) return RuleDataCategory.DcSync;
+            if (rule is IDomainFunctionalLevelComplianceRule) return RuleDataCategory.DomainFunctionalLevel;
+            if (rule is IForestComplianceRule) return RuleDataCategory.ForestOptionalFeature;
+            if (rule is ITrustComplianceRule) return RuleDataCategory.Trust;
+            return RuleDataCategory.User;
+        }
+
+        /// <summary>
+        /// No-Code kural kaydı/güncellemesi anında DataCategory'nin geçerli olduğunu ve
+        /// (nested olmayan tekli koşullarda) TargetProperty'nin gerçekten o kategoride var
+        /// olan bir özellik olduğunu doğrular. Bu kontrol olmadan yanlış yazılmış bir alan
+        /// adı (ör. "SamAcountName") sessizce hiçbir zaman eşleşmeyen, hatasız görünen ama
+        /// aslında hiç işe yaramayan bir kural olarak kayıt anında fark edilmeden kalırdı -
+        /// hata artık kayıt anında, açık bir mesajla verilir.
+        /// </summary>
+        private static bool ValidateDataCategoryAndProperty(JsonRuleDefinition ruleDefinition, out IActionResult? error)
+        {
+            string category = RuleDataCategory.Normalize(ruleDefinition.DataCategory);
+            if (!RuleDataCategory.IsValid(category))
+            {
+                error = new BadRequestObjectResult(new { Message = $"Bilinmeyen veri kategorisi: '{ruleDefinition.DataCategory}'." });
+                return false;
+            }
+
+            ruleDefinition.DataCategory = category;
+
+            var knownProperties = new HashSet<string>(RuleDataCategory.GetPropertyNames(category), StringComparer.OrdinalIgnoreCase);
+
+            if (ruleDefinition.Conditions != null && ruleDefinition.Conditions.Count > 0)
+            {
+                if (!ValidateConditionProperties(ruleDefinition.Conditions, knownProperties, category, out error))
+                {
+                    return false;
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(ruleDefinition.TargetProperty) && !knownProperties.Contains(ruleDefinition.TargetProperty))
+            {
+                error = new BadRequestObjectResult(new { Message = $"'{ruleDefinition.TargetProperty}' özelliği '{category}' kategorisinde bulunamadı." });
+                return false;
+            }
+
+            error = null;
+            return true;
+        }
+
+        private static bool ValidateConditionProperties(List<RuleConditionNode> conditions, HashSet<string> knownProperties, string category, out IActionResult? error)
+        {
+            foreach (var node in conditions)
+            {
+                if (node.Conditions != null && node.Conditions.Count > 0)
+                {
+                    if (!ValidateConditionProperties(node.Conditions, knownProperties, category, out error))
+                    {
+                        return false;
+                    }
+                    continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(node.TargetProperty) && !knownProperties.Contains(node.TargetProperty))
+                {
+                    error = new BadRequestObjectResult(new { Message = $"'{node.TargetProperty}' özelliği '{category}' kategorisinde bulunamadı." });
+                    return false;
+                }
+            }
+
+            error = null;
+            return true;
         }
 
         /// <summary>

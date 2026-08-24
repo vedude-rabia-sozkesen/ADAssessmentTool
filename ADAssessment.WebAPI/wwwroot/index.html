@@ -184,21 +184,18 @@
                             <input type="text" id="ruleDesc" placeholder="Akıllı kart zorunluluğu bulunmayan kritik hesap kontrolü." required>
                         </div>
 
+                        <div class="form-group">
+                            <label for="dataCategory">Hedef Veri Kategorisi</label>
+                            <select id="dataCategory" required>
+                                <option value="">Yükleniyor...</option>
+                            </select>
+                        </div>
+
                         <div class="form-row">
                             <div class="form-group col-4">
                                 <label for="targetProperty">Hedef Öznitelik (Property)</label>
                                 <select id="targetProperty" required>
-                                    <option value="UserAccountControl">UserAccountControl (UAC Bitwise Flags)</option>
-                                    <option value="SamAccountName">SamAccountName (Kullanıcı Adı)</option>
-                                    <option value="DisplayName">DisplayName (Görüntülenen Ad)</option>
-                                    <option value="LastLogonTimestamp">LastLogonTimestamp (Son Logon Tarihi)</option>
-                                    <option value="PasswordLastSet">PasswordLastSet (Şifre Değişim Tarihi)</option>
-                                    <option value="IsAdminCountSet">IsAdminCountSet (AdminSDHolder / Domain Admin)</option>
-                                    <option value="MemberOfCount">MemberOfCount (Grup Üyelik Sayısı)</option>
-                                    <option value="ServicePrincipalNames">ServicePrincipalNames (Kerberos SPN Listesi)</option>
-                                    <option value="IsPasswordNeverExpires">IsPasswordNeverExpires (Şifre Süresiz)</option>
-                                    <option value="IsPasswordNotRequired">IsPasswordNotRequired (Şifresiz Hesap)</option>
-                                    <option value="IsUnconstrainedDelegation">IsUnconstrainedDelegation (Sınırsız Delegasyon)</option>
+                                    <option value="">Önce bir veri kategorisi seçin</option>
                                 </select>
                             </div>
                             <div class="form-group col-4">

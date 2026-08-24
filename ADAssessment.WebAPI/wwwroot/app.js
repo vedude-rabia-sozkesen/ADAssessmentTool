@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let editingRuleId = null;
     let currentRulesCache = [];
     let isAdConfigured = false;
+    let categoryLabelsByValue = {};
 
     // DOM Elementleri
     const loginSection = document.getElementById('loginSection');
@@ -21,6 +22,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const nocodeSubmitBtn = document.getElementById('nocodeSubmitBtn');
     const nocodeCancelEditBtn = document.getElementById('nocodeCancelEditBtn');
     const ruleIdInput = document.getElementById('ruleId');
+    const dataCategorySelect = document.getElementById('dataCategory');
+    const targetPropertySelect = document.getElementById('targetProperty');
 
     // AD Bağlantı Ayarları elementleri
     const adConnectionBadge = document.getElementById('adConnectionBadge');
@@ -193,6 +196,97 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // NO-CODE KURAL MOTORU - VERİ KATEGORİSİ / ÖZELLİK ŞEMASI
+    // Kategori listesi ve her kategorinin desteklediği özellik (property) listesi backend'den
+    // (RuleDataCategory registry'si) dinamik olarak çekilir - böylece yeni bir veri kategorisi
+    // backend'e eklendiğinde bu dosyada HİÇBİR değişiklik gerekmez, sadece sayfa yeniden
+    // yüklendiğinde otomatik olarak görünür. Bu, No-Code hedefinin ("kod değiştirmeden yeni
+    // kural kategorisi eklenebilsin") frontend tarafındaki karşılığı.
+    async function loadRuleCategories() {
+        try {
+            const res = await fetch(`${API_BASE}/rules/categories`, {
+                headers: { 'Authorization': `Bearer ${jwtToken}` }
+            });
+
+            if (res.status === 401) {
+                handleUnauthorized();
+                return;
+            }
+
+            const categories = await safeParseJson(res);
+            if (!Array.isArray(categories)) return;
+
+            categoryLabelsByValue = {};
+            categories.forEach(c => { categoryLabelsByValue[c.value] = c.label; });
+
+            // Aynı grup adına sahip kategoriler tek bir <optgroup> altında toplanır -
+            // "AD Ayarları" grubu 7 alt kategoriyi (GroupPolicy, LdapProtocol, ...) içerir.
+            const groups = new Map();
+            categories.forEach(c => {
+                if (!groups.has(c.group)) groups.set(c.group, []);
+                groups.get(c.group).push(c);
+            });
+
+            dataCategorySelect.innerHTML = '';
+            groups.forEach((items, groupLabel) => {
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = groupLabel;
+                items.forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c.value;
+                    opt.textContent = c.label;
+                    optgroup.appendChild(opt);
+                });
+                dataCategorySelect.appendChild(optgroup);
+            });
+
+            if (categories.length > 0) {
+                await loadPropertySchema(dataCategorySelect.value);
+            }
+        } catch (err) {
+            dataCategorySelect.innerHTML = '<option value="">Kategoriler yüklenemedi</option>';
+        }
+    }
+
+    async function loadPropertySchema(category) {
+        if (!category) {
+            targetPropertySelect.innerHTML = '<option value="">Önce bir veri kategorisi seçin</option>';
+            return;
+        }
+
+        try {
+            const res = await fetch(`${API_BASE}/rules/schema/${encodeURIComponent(category)}`, {
+                headers: { 'Authorization': `Bearer ${jwtToken}` }
+            });
+
+            if (res.status === 401) {
+                handleUnauthorized();
+                return;
+            }
+
+            const properties = await safeParseJson(res);
+            targetPropertySelect.innerHTML = '';
+
+            if (!Array.isArray(properties) || properties.length === 0) {
+                targetPropertySelect.innerHTML = '<option value="">Bu kategoride özellik bulunamadı</option>';
+                return;
+            }
+
+            properties.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p;
+                opt.textContent = p;
+                targetPropertySelect.appendChild(opt);
+            });
+        } catch (err) {
+            targetPropertySelect.innerHTML = '<option value="">Özellik listesi yüklenemedi</option>';
+        }
+    }
+
+    dataCategorySelect.addEventListener('change', () => {
+        loadPropertySchema(dataCategorySelect.value);
+    });
+
     // 4. NO-CODE KURAL EKLE / DÜZENLE (POST veya PUT /api/rules)
     noCodeRuleForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -202,6 +296,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ruleId: ruleIdInput.value,
             name: document.getElementById('ruleName').value,
             description: document.getElementById('ruleDesc').value,
+            dataCategory: dataCategorySelect.value,
             targetProperty: document.getElementById('targetProperty').value,
             operator: document.getElementById('operator').value,
             value: document.getElementById('ruleValue').value,
@@ -297,7 +392,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function startEditRule(rule) {
+    async function startEditRule(rule) {
         const def = rule.definition;
         if (!def) return;
 
@@ -305,7 +400,15 @@ document.addEventListener('DOMContentLoaded', () => {
         ruleIdInput.disabled = true; // Düzenleme sırasında RuleId değiştirilemez
         document.getElementById('ruleName').value = def.name || '';
         document.getElementById('ruleDesc').value = def.description || '';
-        document.getElementById('targetProperty').value = def.targetProperty || 'UserAccountControl';
+
+        // Kategori önce set edilip özellik listesi (targetProperty seçenekleri) o kategoriye
+        // göre yeniden yüklenmeden targetProperty'nin gerçek değeri set edilemez - liste boşken
+        // set edilen bir değer, tarayıcı tarafından sessizce yok sayılır (seçim ilk boş seçeneğe
+        // düşer). await burada kritik: sıralama garantisi olmadan bu kural boş görünürdü.
+        dataCategorySelect.value = def.dataCategory || 'User';
+        await loadPropertySchema(dataCategorySelect.value);
+
+        document.getElementById('targetProperty').value = def.targetProperty || '';
         document.getElementById('operator').value = def.operator || 'BitwiseAND';
         document.getElementById('ruleValue').value = def.value ?? '';
         document.getElementById('condition').value = def.condition || 'NotEqualZero';
@@ -326,6 +429,10 @@ document.addEventListener('DOMContentLoaded', () => {
         ruleIdInput.disabled = false;
         nocodeSubmitBtn.textContent = 'No-Code Kuralı Kaydet & Aktifleştir';
         nocodeCancelEditBtn.classList.add('hidden');
+        // form.reset() <select>'i ilk seçeneğe döndürür ama 'change' olayı tetiklemez -
+        // targetProperty listesi bu ilk kategoriye göre elle yeniden yüklenmezse eski
+        // (bir önceki düzenlenen kuralın) kategorisine ait seçenekleri göstermeye devam eder.
+        loadPropertySchema(dataCategorySelect.value);
     }
 
     // SEKME DEĞİŞTİRME MANTIĞI
@@ -446,6 +553,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     ? '<span class="badge badge-risk-low">Sabit Kod (C#)</span>'
                     : '<span class="badge badge-risk-low">No-Code (JSON)</span>';
 
+                const categoryLabel = categoryLabelsByValue[r.dataCategory] || r.dataCategory || 'Kullanıcı Hesabı';
+                const categoryBadge = `<span class="badge badge-risk-low" style="margin-left:6px;">${categoryLabel}</span>`;
+
                 let actionsHtml = '';
                 if (r.source === 'JsonFile') {
                     if (r.isEditable) {
@@ -466,7 +576,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 item.innerHTML = `
                     <div class="vuln-header">
                         <span class="vuln-title">${r.ruleId} - ${r.name}</span>
-                        ${sourceBadge}
+                        <span>${sourceBadge}${categoryBadge}</span>
                     </div>
                     <p style="color: #94a3b8; font-size: 13px;">${r.description}</p>
                     ${ruleComplianceHtml}
@@ -628,6 +738,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const displayName = localStorage.getItem('jwt_username') || 'Kullanıcı';
         document.getElementById('userBadge').textContent = `Oturum Açık: ${displayName} (Security Analyst)`;
         checkAdConnectionStatus();
+        loadRuleCategories();
     }
 
     // AD BAĞLANTI AYARLARI - dashboard'a her girişte (ve manuel "⚙️ AD Bağlantısı"

@@ -36,6 +36,15 @@ namespace ADAssessment.Core
         public string RiskLevel { get; set; } = "Medium"; // "High", "Medium", "Low"
 
         /// <summary>
+        /// Bu kuralın hangi veri kategorisine (bkz. RuleDataCategory) karşı çalışacağı -
+        /// "User", "Computer", "GroupPolicy", "LdapProtocol" vb. Diskte bu alanı içermeyen
+        /// ESKİ kural dosyaları (bu alan eklenmeden önce oluşturulmuş) deserialize
+        /// edildiğinde otomatik olarak "User" varsayılanını alır - geriye dönük tam uyumlu.
+        /// </summary>
+        [JsonPropertyName("dataCategory")]
+        public string DataCategory { get; set; } = RuleDataCategory.User;
+
+        /// <summary>
         /// Çoklu koşul birleştirme operatörü: "AND", "OR"
         /// </summary>
         [JsonPropertyName("logicalOperator")]

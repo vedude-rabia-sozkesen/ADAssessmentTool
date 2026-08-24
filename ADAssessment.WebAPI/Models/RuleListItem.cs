@@ -19,6 +19,14 @@ namespace ADAssessment.WebAPI.Models
         public string Source { get; set; } = string.Empty;
 
         /// <summary>
+        /// Bu kuralın hangi veri kategorisine (bkz. RuleDataCategory) karşı çalıştığı -
+        /// "Aktif Kurallar" listesinde küçük bir rozet olarak gösterilir. Static kurallar
+        /// için de (görsel tutarlılık amacıyla) doldurulur, ama sadece JsonFile kaynaklı
+        /// kurallar farklı kategoriler seçebilir.
+        /// </summary>
+        public string DataCategory { get; set; } = RuleDataCategory.User;
+
+        /// <summary>
         /// Sadece JsonFile kaynaklı VE nested (iç içe AND/OR) koşul içermeyen kurallar
         /// için true - No-Code formu yalnızca tekli koşulları düzenleyebilir.
         /// </summary>
